@@ -5,6 +5,9 @@ export function canvasTools(page) {
   const editor = page.getByLabel("代码", { exact: true });
   const artwork = page.locator(".canvas-artwork");
   async function close() {
+    const inspector = page.locator(".canvas-inspector");
+    if (await inspector.isVisible())
+      await inspector.getByRole("button", { name: /^关闭/ }).click();
     await page.evaluate(() =>
       document
         .querySelectorAll(":popover-open")
@@ -14,11 +17,28 @@ export function canvasTools(page) {
   async function field(label) {
     if (["代码", "窗口标题", "画布缩放", "风格"].includes(label)) await close();
     else if (
+      ["背景", "背景颜色", "渐变起始色", "渐变结束色", "渐变角度"].includes(
+        label,
+      )
+    ) {
+      if (
+        !(await page
+          .getByRole("dialog", { name: "背景设置", exact: true })
+          .isVisible())
+      ) {
+        await close();
+        await page.getByRole("button", { name: "背景", exact: true }).click();
+      }
+    } else if (
       !(await page
         .getByRole("dialog", { name: "外观设置", exact: true })
         .isVisible())
     )
       await page.getByRole("button", { name: /^外观设置/ }).click();
+    if (label === "背景")
+      return page
+        .getByRole("dialog", { name: "背景设置", exact: true })
+        .getByLabel(label, { exact: true });
     return page.getByLabel(label, { exact: true });
   }
   async function ready() {
@@ -26,10 +46,19 @@ export function canvasTools(page) {
   }
   async function openPopover(trigger) {
     await close();
+    if (!(await trigger.getAttribute("popovertarget"))) {
+      await trigger.click();
+      const panel = page.locator(".canvas-inspector");
+      await expect(panel).toBeVisible();
+      return panel;
+    }
     const title = await trigger.evaluate((element) => {
       const target =
         element.popoverTargetElement ||
-        document.getElementById(element.getAttribute("popovertarget"));
+        document.getElementById(
+          element.getAttribute("popovertarget") ||
+            element.getAttribute("aria-controls"),
+        );
       if (!target) throw new Error("popover target not found");
       return target.getAttribute("aria-label") || "";
     });

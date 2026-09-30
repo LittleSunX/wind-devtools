@@ -4,6 +4,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -27,6 +28,7 @@ export default function CanvasPopover({
 }) {
   useLocale();
   const id = useId();
+  const [expanded, setExpanded] = useState(false);
   const internalTrigger = useRef<HTMLButtonElement>(null);
   const trigger = triggerRef ?? internalTrigger;
   const panel = useRef<HTMLDivElement>(null);
@@ -48,6 +50,8 @@ export default function CanvasPopover({
         popoverTarget={id}
         disabled={disabled}
         aria-haspopup="dialog"
+        aria-expanded={expanded}
+        aria-controls={id}
         aria-label={tr(label)}
       >
         <span className={compactLabel ? "popover-label-full" : undefined}>
@@ -67,7 +71,20 @@ export default function CanvasPopover({
         role="dialog"
         aria-label={tr(title)}
         className="shot-popover"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            panel.current?.hidePopover();
+            trigger.current?.focus();
+          }
+        }}
         onBeforeToggle={(event) => {
+          if (
+            event.newState === "closed" &&
+            panel.current?.contains(document.activeElement)
+          )
+            trigger.current?.focus();
           if (event.newState !== "open" || !panel.current || !trigger.current)
             return;
           const rect = trigger.current.getBoundingClientRect();
@@ -86,7 +103,11 @@ export default function CanvasPopover({
           );
         }}
         onToggle={(event) => {
-          if (event.newState === "open")
+          setExpanded(event.newState === "open");
+          if (
+            event.newState === "open" &&
+            !panel.current?.contains(document.activeElement)
+          )
             panel.current
               ?.querySelector<HTMLInputElement>("input[type=search]")
               ?.focus();

@@ -36,6 +36,7 @@ for (const [name, engine] of [
   try {
     await page.goto(base + "/tools/code-image");
     await ready();
+    await (await field("画布缩放")).selectOption("1");
     await scale(1);
     await (await field("字体")).selectOption("source");
     await (await field("行高")).selectOption("1.4");

@@ -460,5 +460,11 @@
   "跳转到行": "Go to line",
   "跳转": "Go",
   "{{key}}：未提供过期时间": "{{key}}: expiry time not provided",
-  "{{key}}：未提供": "{{key}}: not provided"
+  "{{key}}：未提供": "{{key}}: not provided",
+  "点击代码直接编辑": "Click the code to edit",
+  "背景设置": "Background settings",
+  "代码操作": "Code actions",
+  "调整宽度": "Adjust width",
+  "画布 {{width}} × {{height}} px": "Canvas {{width}} × {{height}} px",
+  "导出 {{width}} × {{height}} px": "Export {{width}} × {{height}} px"
 }

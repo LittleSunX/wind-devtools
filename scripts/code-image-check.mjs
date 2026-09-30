@@ -42,6 +42,7 @@ await mkdir("artifacts", { recursive: true });
 try {
   await page.goto(base + "/tools/code-image");
   await ready();
+  await (await field("画布缩放")).selectOption("1");
   // Preview must show progress immediately and reuse the same PNG until the artwork changes.
   const initialCode = await editor.inputValue();
   await page.evaluate(() => {
@@ -287,6 +288,21 @@ try {
   }
   await (await field("自定义宽度")).fill("800");
   await ready();
+  const widthSlider = await field("调整宽度");
+  await widthSlider.fill("640");
+  await ready();
+  assert.equal((await dimensions()).w, 640);
+  await widthSlider.focus();
+  await page.keyboard.press("ArrowRight");
+  await ready();
+  assert.equal((await dimensions()).w, 650);
+  assert.equal(await editor.inputValue(), long);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "外观设置", exact: true }),
+  ).toBeFocused();
+  await (await field("自定义宽度")).fill("800");
+  await ready();
   await (await field("字体")).selectOption("source");
   await ready();
   assert.ok(
@@ -318,15 +334,24 @@ try {
   await page.getByRole("alert").filter({ hasText: "160 行" }).waitFor();
   await editor.fill("");
   await expect(download).toBeDisabled();
+  await openPopover(
+    page.getByRole("button", { name: "代码操作", exact: true }),
+  );
   await page.getByRole("button", { name: "加载示例", exact: true }).click();
   await ready();
   const before = await editor.inputValue();
   await language("java");
   await ready();
   assert.equal(await editor.inputValue(), before);
+  await openPopover(
+    page.getByRole("button", { name: "代码操作", exact: true }),
+  );
   await page.getByRole("button", { name: "加载示例", exact: true }).click();
   await page.getByRole("button", { name: "取消", exact: true }).click();
   assert.equal(await editor.inputValue(), before);
+  await openPopover(
+    page.getByRole("button", { name: "代码操作", exact: true }),
+  );
   await page.getByRole("button", { name: "加载示例", exact: true }).click();
   await page.getByRole("button", { name: "替换", exact: true }).click();
   await ready();
@@ -375,7 +400,15 @@ try {
   const sheet = await page
     .getByRole("dialog", { name: "外观设置", exact: true })
     .boundingBox();
-  assert.ok(Math.abs(sheet.y + sheet.height - 844) < 2);
+  const stageBounds = await page.locator(".canvas-stage").boundingBox();
+  assert.ok(
+    sheet.y >= stageBounds.y + stageBounds.height - 1,
+    "mobile settings must sit below the artwork",
+  );
+  assert.ok(
+    sheet.height <= 844 * 0.43 + 2,
+    "settings must scroll independently",
+  );
   const failed = await context.newPage();
   await failed.route("**/fonts/*.woff2", (route) => route.abort());
   await failed.goto(base + "/tools/code-image");

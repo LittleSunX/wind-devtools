@@ -1,14 +1,15 @@
 import type { Message } from "../i18n";
 import { tr, useLocale } from "../i18n/react";
-import { localizedPath } from "../i18n/routing";
 import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useId,
   useState,
   type CSSProperties,
 } from "react";
 import CanvasSettings from "./CanvasSettings";
+import CanvasBackground from "./CanvasBackground";
 import CanvasPopover from "./CanvasPopover";
 import CanvasCode from "./CanvasCode";
 import { loadCanvasFont } from "../utils/canvas-fonts";
@@ -33,8 +34,7 @@ import {
 } from "../utils/code-image";
 
 export default function CodeImage() {
-  const locale = useLocale();
-  const toolboxHref = localizedPath("/tools", locale === "en" ? "en" : "zh");
+  useLocale();
   const [code, setCode] = useState(sampleCode);
   const [language, setLanguage] = useState("typescript");
   const [options, setOptions] = useState<ImageOptions>(defaults);
@@ -45,12 +45,44 @@ export default function CodeImage() {
   const [exporting, setExporting] = useState(false);
   const [replace, setReplace] = useState(false);
   const [languageSearch, setLanguageSearch] = useState("");
-  const [zoom, setZoom] = useState("1");
+  const [zoom, setZoom] = useState("fit");
   const [draggingFile, setDraggingFile] = useState(false);
+  const [inspector, setInspector] = useState<
+    "background" | "appearance" | null
+  >(null);
+  const inspectorId = useId();
+  const [workspaceTop, setWorkspaceTop] = useState(160);
+  const backgroundTrigger = useRef<HTMLButtonElement>(null);
+  const appearanceTrigger = useRef<HTMLButtonElement>(null);
+  const [viewport, setViewport] = useState({ width: 1440, height: 900 });
+  useEffect(() => {
+    const resize = () =>
+      setViewport({ width: innerWidth, height: innerHeight });
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  function closeInspector() {
+    (inspector === "background"
+      ? backgroundTrigger
+      : appearanceTrigger
+    ).current?.focus();
+    setInspector(null);
+  }
+  function toggleInspector(next: "background" | "appearance") {
+    document
+      .querySelectorAll(":popover-open")
+      .forEach((el) => (el as HTMLElement).hidePopover());
+    setInspector((current) => (current === next ? null : next));
+  }
   const artwork = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState(1000);
   const [autoWidth, setAutoWidth] = useState(720);
+  useLayoutEffect(() => {
+    if (stage.current)
+      setWorkspaceTop(stage.current.getBoundingClientRect().top);
+  }, [inspector, viewport]);
   const [size, setSize] = useState({
     width: 0,
     height: 0,
@@ -169,7 +201,13 @@ export default function CodeImage() {
   });
   const displayScale =
     zoom === "fit"
-      ? Math.min(1, Math.max(0.1, (available - 48) / (size.width || 1)))
+      ? Math.min(
+          1,
+          Math.max(0.1, (available - 48) / (size.width || 1)),
+          inspector && viewport.width <= 800
+            ? Math.max(0.1, (viewport.height * 0.36 - 48) / (size.height || 1))
+            : 1,
+        )
       : Number(zoom);
   const background =
     options.background === "transparent"
@@ -281,19 +319,10 @@ export default function CodeImage() {
   );
   return (
     <>
-      <div className="breadcrumb">
-        <a href={toolboxHref}>{tr("工具箱")}</a>
-        <span>/</span>
-        {tr("代码画布")}
-      </div>
-      <section className="tool-heading canvas-heading">
-        <div>
-          <div className="eyebrow">{tr("创作与分享 / CODE CANVAS")}</div>
-          <h1>{tr("代码画布")}</h1>
-          <p>{tr("直接在画布中写下代码，把眼前的作品带走。")}</p>
-        </div>
-        <span className="shot-badge">LOCAL · PNG / SVG</span>
-      </section>
+      <header className="canvas-heading">
+        <h1>{tr("代码画布")}</h1>
+        <span>{tr("点击代码直接编辑")}</span>
+      </header>
       <div
         className="shot-toolbar canvas-toolbar"
         aria-label={tr("画布工具栏")}
@@ -397,22 +426,79 @@ export default function CodeImage() {
             }));
           },
         )}
+        <button
+          ref={backgroundTrigger}
+          aria-controls={inspectorId}
+          aria-expanded={inspector === "background"}
+          disabled={exporting}
+          onClick={() => toggleInspector("background")}
+        >
+          {tr("背景")} <span aria-hidden="true">⌄</span>
+        </button>
+        <button
+          ref={appearanceTrigger}
+          aria-controls={inspectorId}
+          aria-expanded={inspector === "appearance"}
+          disabled={exporting}
+          onClick={() => toggleInspector("appearance")}
+        >
+          {tr("外观设置")} <span aria-hidden="true">⌄</span>
+        </button>
+
         <CanvasPopover
-          alignEnd
-          label="外观设置"
-          title="外观设置"
+          label="代码操作"
+          compactLabel="代码"
+          title="代码操作"
           disabled={exporting}
         >
-          <CanvasSettings
-            options={options}
-            update={update}
-            exporting={exporting}
-            onReset={() => {
-              setOptions({ ...defaults, title: options.title });
-            }}
-          />
+          <div className="canvas-code-menu">
+            <p id="canvas-help">
+              {tr(
+                "点击代码直接编辑 · Tab 缩进 · Esc 后 Tab 离开 · Ctrl / ⌘ + F 查找",
+              )}
+            </p>
+            <button
+              disabled={exporting}
+              onClick={() => {
+                document
+                  .querySelectorAll(":popover-open")
+                  .forEach((el) => (el as HTMLElement).hidePopover());
+                if (code) setReplace(true);
+                else changeCode(sampleForLanguage(language));
+              }}
+            >
+              {tr("加载示例")}
+            </button>
+            <button
+              disabled={exporting}
+              onClick={(event) => {
+                changeCode("");
+                event.currentTarget
+                  .closest<HTMLElement>("[popover]")
+                  ?.hidePopover();
+              }}
+            >
+              {tr("清空")}
+            </button>
+            <label className="canvas-file-import">
+              {tr("导入文件")}
+              <input
+                type="file"
+                disabled={exporting}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void importFile(file);
+                    event.currentTarget
+                      .closest<HTMLElement>("[popover]")
+                      ?.hidePopover();
+                  }
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          </div>
         </CanvasPopover>
-
         <CanvasActions
           artwork={artwork}
           options={options}
@@ -422,36 +508,6 @@ export default function CodeImage() {
           setNotice={setNotice}
           update={update}
         />
-      </div>
-      <div className="canvas-utility">
-        <span id="canvas-help">
-          {tr(
-            "点击代码直接编辑 · Tab 缩进 · Esc 后 Tab 离开 · Ctrl / ⌘ + F 查找",
-          )}
-        </span>
-        <button
-          disabled={exporting}
-          onClick={() =>
-            code ? setReplace(true) : changeCode(sampleForLanguage(language))
-          }
-        >
-          {tr("加载示例")}
-        </button>
-        <button disabled={exporting} onClick={() => changeCode("")}>
-          {tr("清空")}
-        </button>
-        <label className="canvas-file-import">
-          {tr("导入文件")}
-          <input
-            type="file"
-            disabled={exporting}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void importFile(file);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
       </div>
       {replace && (
         <div className="replace-prompt">
@@ -463,134 +519,205 @@ export default function CodeImage() {
         </div>
       )}
       <div
-        className={`canvas-stage ${options.background === "transparent" ? "is-transparent" : ""} ${draggingFile ? "is-dragging" : ""}`}
-        ref={stage}
-        aria-label={tr("画布工作区")}
-        aria-busy={exporting}
-        onDragEnter={(event) => {
-          event.preventDefault();
-          if (!exporting) setDraggingFile(true);
-        }}
-        onDragOver={(event) => {
-          event.preventDefault();
-          if (!exporting) event.dataTransfer.dropEffect = "copy";
-        }}
-        onDragLeave={(event) => {
-          if (event.currentTarget === event.target) setDraggingFile(false);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          if (exporting) return;
-          const file = event.dataTransfer.files[0];
-          if (file) void importFile(file);
-          else setDraggingFile(false);
-        }}
+        className={`canvas-workspace ${inspector ? "has-inspector" : ""}`}
+        style={{ "--workspace-top": `${workspaceTop}px` } as CSSProperties}
       >
         <div
-          className="canvas-frame"
-          style={{
-            width: size.width ? size.width * displayScale : undefined,
-            height: size.height ? size.height * displayScale : undefined,
+          className={`canvas-stage ${options.background === "transparent" ? "is-transparent" : ""} ${draggingFile ? "is-dragging" : ""}`}
+          ref={stage}
+          aria-label={tr("画布工作区")}
+          aria-busy={exporting}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (!exporting) setDraggingFile(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!exporting) event.dataTransfer.dropEffect = "copy";
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget === event.target) setDraggingFile(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (exporting) return;
+            const file = event.dataTransfer.files[0];
+            if (file) void importFile(file);
+            else setDraggingFile(false);
           }}
         >
           <div
-            className="canvas-artwork"
-            ref={artwork}
-            style={
-              {
-                padding: options.padding,
-                width:
-                  options.widthMode === "fixed" &&
-                  Number.isFinite(options.width)
-                    ? Math.max(320, Math.min(2400, options.width))
-                    : autoWidth,
-                background,
-                aspectRatio: aspectRatioValue(options.aspectRatio),
-                transform: `scale(${displayScale})`,
-                font: canvasFont(options),
-                fontVariantLigatures: "none",
-                lineHeight: `${Math.ceil(options.fontSize * options.lineHeight)}px`,
-                color: theme.text,
-              } as CSSProperties
-            }
+            className="canvas-frame"
+            style={{
+              width: size.width ? size.width * displayScale : undefined,
+              height: size.height ? size.height * displayScale : undefined,
+            }}
           >
             <div
-              className="canvas-measure"
-              data-export-ignore
-              aria-hidden="true"
+              className="canvas-artwork"
+              ref={artwork}
+              style={
+                {
+                  padding: options.padding,
+                  width:
+                    options.widthMode === "fixed" &&
+                    Number.isFinite(options.width)
+                      ? Math.max(320, Math.min(2400, options.width))
+                      : autoWidth,
+                  background,
+                  aspectRatio: aspectRatioValue(options.aspectRatio),
+                  transform: `scale(${displayScale})`,
+                  font: canvasFont(options),
+                  fontVariantLigatures: "none",
+                  lineHeight: `${Math.ceil(options.fontSize * options.lineHeight)}px`,
+                  color: theme.text,
+                } as CSSProperties
+              }
             >
-              <span className="canvas-ruler">{code || " "}</span>
-            </div>
-            <div
-              className="canvas-window"
-              style={{
-                background: theme.bg,
-                minWidth: options.widthMode === "fixed" ? 0 : 420,
-                borderRadius: options.windowRadius,
-                boxShadow:
-                  options.shadow === "none"
-                    ? "none"
-                    : options.shadow === "strong"
-                      ? "0 18px 42px #17203a55"
-                      : "0 10px 24px #17203a33",
-                overflow: "hidden",
-              }}
-            >
-              {options.windowBar && options.windowStyle !== "none" && (
-                <div
-                  className={`canvas-windowbar style-${options.windowStyle}`}
-                >
-                  {options.windowStyle === "mac" && (
-                    <div className="canvas-window-dots" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                  )}
-                  {options.windowStyle === "minimal" && (
-                    <div className="canvas-window-minimal" aria-hidden="true">
-                      •••
-                    </div>
-                  )}
-                  <div className="canvas-title" style={{ color: theme.muted }}>
-                    <span aria-hidden="true">{options.title || "\u00a0"}</span>
-                    <input
-                      data-export-ignore
-                      aria-label={tr("窗口标题")}
-                      placeholder={tr("添加标题…")}
-                      value={options.title}
-                      maxLength={80}
-                      disabled={exporting}
-                      onChange={(event) => update("title", event.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
               <div
-                className="canvas-code-padding"
-                style={{ padding: options.codePadding }}
+                className="canvas-measure"
+                data-export-ignore
+                aria-hidden="true"
               >
-                <CanvasCode
-                  code={code}
-                  segments={segments}
-                  colors={theme.colors}
-                  muted={theme.muted}
-                  lineNumbers={options.lineNumbers}
-                  startLine={options.startLine}
-                  highlightedLines={highlightedLines}
-                  wrap={options.widthMode === "fixed" && options.wrap}
-                  readOnly={exporting}
-                  onChange={changeCode}
-                />
+                <span className="canvas-ruler">{code || " "}</span>
+              </div>
+              <div
+                className="canvas-window"
+                style={{
+                  background: theme.bg,
+                  minWidth: options.widthMode === "fixed" ? 0 : 420,
+                  borderRadius: options.windowRadius,
+                  boxShadow:
+                    options.shadow === "none"
+                      ? "none"
+                      : options.shadow === "strong"
+                        ? "0 18px 42px #17203a55"
+                        : "0 10px 24px #17203a33",
+                  overflow: "hidden",
+                }}
+              >
+                {options.windowBar && options.windowStyle !== "none" && (
+                  <div
+                    className={`canvas-windowbar style-${options.windowStyle}`}
+                  >
+                    {options.windowStyle === "mac" && (
+                      <div className="canvas-window-dots" aria-hidden="true">
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                    )}
+                    {options.windowStyle === "minimal" && (
+                      <div className="canvas-window-minimal" aria-hidden="true">
+                        •••
+                      </div>
+                    )}
+                    <div
+                      className="canvas-title"
+                      style={{ color: theme.muted }}
+                    >
+                      <span aria-hidden="true">
+                        {options.title || "\u00a0"}
+                      </span>
+                      <input
+                        data-export-ignore
+                        aria-label={tr("窗口标题")}
+                        placeholder={tr("添加标题…")}
+                        value={options.title}
+                        maxLength={80}
+                        disabled={exporting}
+                        onChange={(event) =>
+                          update("title", event.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+                <div
+                  className="canvas-code-padding"
+                  style={{ padding: options.codePadding }}
+                >
+                  <CanvasCode
+                    code={code}
+                    segments={segments}
+                    colors={theme.colors}
+                    muted={theme.muted}
+                    lineNumbers={options.lineNumbers}
+                    startLine={options.startLine}
+                    highlightedLines={highlightedLines}
+                    wrap={options.widthMode === "fixed" && options.wrap}
+                    readOnly={exporting}
+                    onChange={changeCode}
+                  />
+                </div>
               </div>
             </div>
           </div>
         </div>
+        {inspector && (
+          <aside
+            id={inspectorId}
+            className="canvas-inspector"
+            role="dialog"
+            aria-modal="false"
+            aria-label={tr(
+              inspector === "background" ? "背景设置" : "外观设置",
+            )}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                closeInspector();
+              }
+            }}
+          >
+            <div className="shot-popover-heading">
+              <strong>
+                {tr(inspector === "background" ? "背景设置" : "外观设置")}
+              </strong>
+              <button
+                aria-label={tr("关闭{{name}}", {
+                  name: tr(
+                    inspector === "background" ? "背景设置" : "外观设置",
+                  ),
+                })}
+                onClick={closeInspector}
+              >
+                {tr("关闭")}
+              </button>
+            </div>
+            {inspector === "background" ? (
+              <CanvasBackground
+                options={options}
+                update={update}
+                exporting={exporting}
+              />
+            ) : (
+              <CanvasSettings
+                options={options}
+                update={update}
+                exporting={exporting}
+                onReset={() =>
+                  setOptions({ ...defaults, title: options.title })
+                }
+              />
+            )}
+          </aside>
+        )}
       </div>
       <div className="canvas-statusbar">
         <span>{tr("{{count}} / 12,000 字符", { count: code.length })}</span>
         <span>
-          {size.width * options.scale} × {size.height * options.scale} px
+          {tr("画布 {{width}} × {{height}} px", {
+            width: size.width,
+            height: size.height,
+          })}
+        </span>
+        <span>
+          {tr("导出 {{width}} × {{height}} px", {
+            width: size.width * options.scale,
+            height: size.height * options.scale,
+          })}
         </span>
         <label>
           {tr("画布缩放")}
