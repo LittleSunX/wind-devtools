@@ -1,4 +1,5 @@
 :root {
+  --topbar-height: 60px;
   font-family:
     Inter,
     -apple-system,
@@ -74,13 +75,13 @@ button.primary:hover {
   background: #2946bd;
 }
 .topbar {
-  height: 78px;
+  height: var(--topbar-height);
   border-bottom: 1px solid #e1e2e6;
   background: #fff;
   display: flex;
   align-items: center;
-  padding: 0 36px;
-  gap: 28px;
+  padding: 0 28px;
+  gap: 20px;
 }
 .brand {
   display: flex;
@@ -119,7 +120,7 @@ i {
   display: flex;
   max-width: 1700px;
   margin: auto;
-  min-height: calc(100vh - 78px);
+  min-height: calc(100vh - var(--topbar-height));
 }
 .sidebar {
   width: 232px;
@@ -845,11 +846,14 @@ select {
   }
 }
 @media (max-width: 800px) {
+  :root {
+    --topbar-height: 56px;
+  }
   .sidebar {
     display: none;
   }
   .topbar {
-    height: 67px;
+    height: var(--topbar-height);
     padding: 0 20px;
     gap: 18px;
   }
@@ -1226,8 +1230,8 @@ select {
 }
 .sidebar {
   position: sticky;
-  top: 78px;
-  height: calc(100dvh - 78px);
+  top: var(--topbar-height);
+  height: calc(100dvh - var(--topbar-height));
   overflow-y: auto;
   overflow-x: hidden;
   transition:
@@ -1299,6 +1303,11 @@ select {
   }
   .topbar nav {
     gap: 14px;
+  }
+}
+@media (max-width: 520px) {
+  .topbar nav {
+    display: none;
   }
 }
 @media (max-width: 380px) {
@@ -1424,52 +1433,91 @@ select {
 
 .language-control {
   margin-left: auto;
-  display: inline-flex;
+  flex-shrink: 0;
+}
+.language-trigger {
+  display: flex;
   align-items: center;
   gap: 8px;
+  width: 120px;
   min-height: 36px;
-  padding: 0 11px;
-  border: 1px solid #e2e6ed;
-  border-radius: 8px;
-  background: #f8f9fb;
-  color: #43506a;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-.language-control:hover,
-.language-control:focus-within {
-  background: #f1f4f9;
-  border-color: #cbd5e3;
-}
-.language-control:focus-within {
-  outline: 2px solid #5271eb;
-  outline-offset: 2px;
-}
-.language-switcher {
-  appearance: none;
-  width: auto;
-  min-width: 0;
-  min-height: 34px;
-  padding: 0 6px 0 0;
+  padding: 7px 10px;
   border: 0;
-  outline: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #52617b;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.language-trigger:hover:not(:disabled),
+.language-trigger[aria-expanded="true"] {
+  background: #f1f4f8;
+  color: #344054;
+}
+.language-trigger > svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.language-label {
+  text-align: left;
+  flex: 1;
+}
+.language-trigger > .language-chevron {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s;
+}
+.language-trigger[aria-expanded="true"] > .language-chevron {
+  transform: rotate(180deg);
+}
+.language-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: 160px;
+  padding: 5px;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  background: #fff;
+  color: #43506a;
+  box-shadow: 0 8px 28px #18213a14;
+}
+.language-menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
   background: transparent;
   color: inherit;
-  font-size: 12px;
-  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
 }
-.language-switcher:focus-visible {
-  outline: 0;
+.language-menu-option:hover:not(:disabled) {
+  background: #f3f5f8;
 }
-.language-chevron {
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: translateY(-2px) rotate(45deg);
-  pointer-events: none;
+.language-menu-option[aria-checked="true"] {
+  color: #3659e3;
+  background: #eef2ff;
+}
+.language-menu-option svg {
+  width: 15px;
+  height: 15px;
+}
+.language-menu-option:focus-visible {
+  outline-offset: -2px;
+}
+@media (pointer: coarse) {
+  .language-trigger {
+    min-height: 44px;
+  }
+  .language-menu-option {
+    min-height: 44px;
+  }
 }
 html[lang="en"] .side-label {
   white-space: normal;
@@ -1495,10 +1543,10 @@ html[lang="en"] .editor-header label span {
 
 /* Keep tool content close to the page title and make repeated controls consistent. */
 main {
-  padding-top: 30px;
+  padding-top: 22px;
 }
 main.tool-page {
-  padding-top: 24px;
+  padding-top: 18px;
 }
 .breadcrumb {
   margin-bottom: 14px;
@@ -1656,10 +1704,10 @@ main.tool-page {
 }
 @media (min-width: 1500px) {
   main {
-    padding-top: 34px;
+    padding-top: 26px;
   }
   main.tool-page {
-    padding-top: 28px;
+    padding-top: 20px;
   }
   .hero {
     min-height: 250px;
@@ -1670,10 +1718,10 @@ main.tool-page {
 }
 @media (max-width: 800px) {
   main {
-    padding-top: 24px;
+    padding-top: 20px;
   }
   main.tool-page {
-    padding-top: 20px;
+    padding-top: 16px;
   }
   .hero {
     min-height: 210px;
@@ -1685,7 +1733,7 @@ main.tool-page {
 @media (max-width: 520px) {
   main,
   main.tool-page {
-    padding: 20px 20px 0;
+    padding: 16px 20px 0;
   }
   .hero {
     min-height: 0;

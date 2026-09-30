@@ -50,10 +50,34 @@ for (const [name, engine] of [
     await expect(page.getByRole("alert")).toHaveCount(0);
   };
   const switchTo = async (language) => {
-    await page.locator(".language-switcher").selectOption(language);
+    const timeOrigin = await page.evaluate(() => performance.timeOrigin);
+    const before = await page.locator(".language-control").boundingBox();
+    await page.locator(".language-trigger").click();
+    await page
+      .locator(".language-menu")
+      .getByRole("menuitemradio", {
+        name: language === "zh" ? "中文" : "English",
+        exact: true,
+      })
+      .click();
     await expect(page.locator("html")).toHaveAttribute(
       "lang",
       language === "zh" ? "zh-CN" : "en",
+    );
+    await expect(page.locator(".language-trigger")).toHaveText(
+      language === "zh" ? "中文" : "English",
+    );
+    await expect(page.locator(".language-trigger")).toBeFocused();
+    await expect(page.locator(".language-trigger")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    assert.equal(await page.evaluate(() => performance.timeOrigin), timeOrigin);
+    const after = await page.locator(".language-control").boundingBox();
+    assert.equal(
+      after.width,
+      before.width,
+      "Language control must not resize on switching",
     );
   };
   const noChineseUI = async () => {
@@ -66,7 +90,7 @@ for (const [name, engine] of [
         if (
           !parent ||
           parent.closest(
-            "script, style, textarea, .cm-content, .canvas-artwork, .diff-lines, .language-switcher",
+            "script, style, textarea, .cm-content, .canvas-artwork, .diff-lines, .language-control",
           )
         )
           continue;
@@ -88,6 +112,27 @@ for (const [name, engine] of [
     await page.goto(base + "/en/tools");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page).toHaveURL(/\/en\/tools$/);
+    const trigger = page.locator(".language-trigger");
+    await trigger.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(
+      page.getByRole("menuitemradio", { name: "English", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("Enter");
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expect(trigger).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("End");
+    await page.keyboard.press("Space");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await trigger.click();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await page.locator(".hero h1").click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
     await page.getByLabel("Search tools", { exact: true }).fill("timestamp");
     await expect(page.locator(".tool-card")).toHaveCount(1);
     await expect(page.locator(".filters > span")).toHaveText("1 tool");
@@ -97,7 +142,7 @@ for (const [name, engine] of [
       "timestamp",
     );
     await page.reload();
-    await expect(page.locator(".language-switcher")).toHaveValue("zh");
+    await expect(page.locator(".language-trigger")).toHaveText("中文");
     await switchTo("en");
     await expect(page).toHaveURL(/\/en\/tools$/);
     await page.getByRole("button", { name: "Data tools", exact: true }).click();
@@ -236,7 +281,7 @@ for (const [name, engine] of [
     await expect(page).toHaveURL(/\/en\/tools\/code-image$/);
     await canvasReady();
     await noChineseUI();
-    for (const width of [375, 800]) {
+    for (const width of [320, 375, 390, 414, 800]) {
       await page.setViewportSize({ width, height: 900 });
       for (const route of [
         "/en/tools",
@@ -252,7 +297,7 @@ for (const [name, engine] of [
           ),
           `${route} overflows at ${width}`,
         );
-        await expect(page.locator(".language-switcher")).toBeVisible();
+        await expect(page.locator(".language-control")).toBeVisible();
       }
     }
     await page.screenshot({ path: `artifacts/i18n-${name}-mobile.png` });
@@ -270,7 +315,10 @@ for (const [name, engine] of [
     const other = await blocked.newPage();
     await other.goto(base + "/en/tools");
     await expect(other.locator("html")).toHaveAttribute("lang", "en");
-    await other.locator(".language-switcher").selectOption("zh");
+    await other.locator(".language-trigger").click();
+    await other
+      .getByRole("menuitemradio", { name: "中文", exact: true })
+      .click();
     await expect(other.locator("html")).toHaveAttribute("lang", "zh-CN");
     await blocked.close();
     console.log(
