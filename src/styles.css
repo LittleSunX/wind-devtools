@@ -1,5 +1,5 @@
 :root {
-  --topbar-height: 60px;
+  --topbar-height: 52px;
   font-family:
     Inter,
     -apple-system,
@@ -846,9 +846,6 @@ select {
   }
 }
 @media (max-width: 800px) {
-  :root {
-    --topbar-height: 56px;
-  }
   .sidebar {
     display: none;
   }
@@ -1543,10 +1540,10 @@ html[lang="en"] .editor-header label span {
 
 /* Keep tool content close to the page title and make repeated controls consistent. */
 main {
-  padding-top: 22px;
+  padding-top: 16px;
 }
 main.tool-page {
-  padding-top: 18px;
+  padding-top: 12px;
 }
 .breadcrumb {
   margin-bottom: 14px;
@@ -1704,10 +1701,10 @@ main.tool-page {
 }
 @media (min-width: 1500px) {
   main {
-    padding-top: 26px;
+    padding-top: 16px;
   }
   main.tool-page {
-    padding-top: 20px;
+    padding-top: 12px;
   }
   .hero {
     min-height: 250px;
@@ -1718,10 +1715,10 @@ main.tool-page {
 }
 @media (max-width: 800px) {
   main {
-    padding-top: 20px;
+    padding-top: 16px;
   }
   main.tool-page {
-    padding-top: 16px;
+    padding-top: 12px;
   }
   .hero {
     min-height: 210px;
@@ -1733,7 +1730,7 @@ main.tool-page {
 @media (max-width: 520px) {
   main,
   main.tool-page {
-    padding: 16px 20px 0;
+    padding: 12px 20px 0;
   }
   .hero {
     min-height: 0;
