@@ -15,8 +15,17 @@ for (const [name, engine] of [
   });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  const hydrated = () =>
+    expect(page.locator("#root")).toHaveAttribute("data-hydrated", "true", {
+      timeout: 15000,
+    });
+  const reload = async () => {
+    await page.reload();
+    await hydrated();
+  };
   try {
     await page.goto(base + "/tools/code-image");
+    await hydrated();
     const download = page.getByRole("button", {
       name: "导出",
       exact: true,
@@ -44,7 +53,7 @@ for (const [name, engine] of [
         .getByRole("link", { name: "代码画布", exact: true }),
     ).toHaveAttribute("aria-current", "page");
     await page.screenshot({ path: `artifacts/sidebar-${name}-collapsed.png` });
-    await page.reload();
+    await reload();
     await expect(
       page.getByRole("button", { name: "展开侧边栏", exact: true }),
     ).toBeVisible();
@@ -107,7 +116,7 @@ for (const [name, engine] of [
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.clock.install();
     await page.mouse.move(900, 200);
-    await page.reload();
+    await reload();
     const collapseButton = page.getByRole("button", {
       name: "收起侧边栏",
       exact: true,
@@ -123,7 +132,7 @@ for (const [name, engine] of [
       await page.evaluate(() => localStorage.getItem("wind.sidebar.collapsed")),
       "false",
     );
-    await page.reload();
+    await reload();
     await expect(collapseButton).toBeVisible();
     await page.locator("#desktop-sidebar").hover();
     await page.clock.runFor(31000);
@@ -146,7 +155,7 @@ for (const [name, engine] of [
     await page.getByLabel("代码", { exact: true }).focus();
     await page.clock.runFor(60000);
     await expect(collapseButton).toBeVisible();
-    await page.reload();
+    await reload();
     await expect(
       page.getByRole("button", { name: "已固定展开", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -165,7 +174,7 @@ for (const [name, engine] of [
       }),
     );
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.reload();
+    await reload();
     await page.getByRole("button", { name: "收起侧边栏", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "展开侧边栏", exact: true }),

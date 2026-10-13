@@ -8,20 +8,22 @@
 
 1. 点击上方 **Deploy** 按钮。
 2. 登录 Vercel，按提示将项目保存到自己的 GitHub 仓库。
-3. 确认框架为 **Vite**，构建命令为 `npm run build`，输出目录为 `dist`。
+3. 确认框架为 **Vite**，构建命令为 `npm run build:production`，输出目录为 `dist`。
 4. 点击 **Deploy**，等待构建完成即可访问。
 
 如果要直接部署已有的仓库，可在 Vercel 中选择 **Add New → Project**，导入 `LittleSunX/Wind-DevTools-`。
 
-正式上线时，将 `SITE_URL` 设置为站点实际地址（例如 `https://tools.your-domain.com`），然后重新部署。
+正式部署使用 `npm run build` 或 `npm run build:production`。已提交的 `site.config.json` 默认使用 `https://wind-tools.ccwu.cc`，因此项目正式部署无需额外设置变量就会输出 canonical、双语 hreflang、sitemap 与允许收录的 robots。
 
-`SITE_URL` 在构建时用于生成 canonical、`sitemap.xml` 和 `robots.txt`。未设置时，构建默认使用 `Disallow: /`，用于避免预览环境被收录。域名变更后需重新构建。
+部署到其他域名时，可修改 `site.config.json`，或设置 `SITE_URL`（例如 `https://tools.your-domain.com`）覆盖正式域名，然后重新构建。
+
+`npm run build:preview` 明确强制禁收录：`robots.txt` 使用 `Disallow: /`，所有页面带 `noindex`，不生成 sitemap，即使本地继承了生产 `SITE_URL`。Vercel 的 `VERCEL_ENV=preview` 或 `development` 也强制采用预览策略。CI 使用 `build:preview`。其他托管平台的预览任务也应明确使用这一命令，正式任务使用默认 `npm run build`。
 
 本地配置可复制 [.env.example](../.env.example) 为 `.env.production` 后填写；部署平台则直接设置同名环境变量。
 
 ### 其他静态托管平台
 
-运行 `npm ci` 和 `npm run build`，上传 `dist/` 中的内容。主机需要支持目录下的 `index.html`，并将 `404.html` 作为状态码为 404 的错误页，避免将所有未知地址重写到首页。
+运行 `npm ci` 和 `npm run build:production`，上传 `dist/` 中的内容。主机需要支持目录下的 `index.html`，并将 `404.html` 作为状态码为 404 的错误页，避免将所有未知地址重写到首页。
 
 ### 可选：Umami 访问统计
 

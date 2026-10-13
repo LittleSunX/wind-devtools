@@ -89,6 +89,7 @@ export default function CanvasCode({
         ))}
       </div>
       <textarea
+        autoComplete="off"
         ref={input}
         id="shot-code"
         className="canvas-input"

@@ -1,7 +1,8 @@
 import { tr, useLocale } from "../i18n/react";
 import { localizedPath } from "../i18n/routing";
-import { useMemo, useState } from "react";
-import { diffLines, formatUnifiedDiff } from "../utils/diff";
+import { useState } from "react";
+import { formatUnifiedDiff } from "../utils/diff";
+import { useDiffExecution } from "./useDiffExecution";
 import { trackTool } from "../analytics";
 import ToolIcon from "./ToolIcon";
 
@@ -25,18 +26,7 @@ export default function DiffTool() {
   const [right, setRight] = useState("");
   const [notice, setNotice] = useState("");
 
-  const comparison = useMemo(() => {
-    if (!left && !right) return { lines: [], error: "" };
-    try {
-      return { lines: diffLines(left, right), error: "" };
-    } catch (err) {
-      return {
-        lines: [],
-        error: err instanceof Error ? err.message : "比较失败。",
-      };
-    }
-  }, [left, right]);
-  const { lines, error } = comparison;
+  const { lines, error, busy, cancelled, stop } = useDiffExecution(left, right);
 
   const added = lines.filter((line) => line.kind === "add").length;
   const removed = lines.filter((line) => line.kind === "remove").length;
@@ -83,8 +73,11 @@ export default function DiffTool() {
             <label htmlFor="diff-left">
               {tr("原始文本")} <span>BEFORE</span>
             </label>
-            <button onClick={loadExample}>{tr("加载示例")}</button>
+            <button {...{ autoComplete: "off" }} onClick={loadExample}>
+              {tr("加载示例")}
+            </button>
             <button
+              {...{ autoComplete: "off" }}
               onClick={() => {
                 setLeft("");
                 setRight("");
@@ -95,10 +88,14 @@ export default function DiffTool() {
             </button>
           </div>
           <textarea
+            autoComplete="off"
             id="diff-left"
             spellCheck={false}
             value={left}
-            onChange={(event) => setLeft(event.target.value)}
+            onChange={(event) => {
+              setLeft(event.target.value);
+              setNotice("");
+            }}
             placeholder={tr("粘贴原始文本…")}
           />
           <div className="editor-footer">
@@ -117,10 +114,14 @@ export default function DiffTool() {
             </label>
           </div>
           <textarea
+            autoComplete="off"
             id="diff-right"
             spellCheck={false}
             value={right}
-            onChange={(event) => setRight(event.target.value)}
+            onChange={(event) => {
+              setRight(event.target.value);
+              setNotice("");
+            }}
             placeholder={tr("粘贴修改后的文本…")}
           />
           <div className="editor-footer">
@@ -140,7 +141,11 @@ export default function DiffTool() {
         </div>
       )}
 
-      <section className="diff-result" aria-label={tr("Diff 结果")}>
+      <section
+        className="diff-result"
+        aria-label={tr("Diff 结果")}
+        aria-busy={busy}
+      >
         <div className="diff-result-header">
           <strong>{tr("差异结果")}</strong>
           <span>
@@ -151,13 +156,28 @@ export default function DiffTool() {
                 })
               : tr("绿色新增 · 红色删除")}
           </span>
-          <button disabled={!lines.length} onClick={copyDiff}>
+          {busy && (
+            <button {...{ autoComplete: "off" }} onClick={stop}>
+              {tr("取消处理")}
+            </button>
+          )}
+          <button
+            {...{ autoComplete: "off" }}
+            disabled={!added && !removed}
+            onClick={copyDiff}
+          >
             {tr("复制统一 Diff")}
           </button>
         </div>
-        {!lines.length && !error ? (
+        {busy || cancelled || (!lines.length && !error) ? (
           <div className="diff-empty">
-            {tr("输入两侧文本后，这里会实时显示行级差异。")}
+            {tr(
+              busy
+                ? "正在比较…"
+                : cancelled
+                  ? "比较已取消，修改文本后会重新比较。"
+                  : "输入两侧文本后，这里会实时显示行级差异。",
+            )}
           </div>
         ) : (
           <div className="diff-lines">
@@ -185,7 +205,7 @@ export default function DiffTool() {
         <h2>{tr("使用说明")}</h2>
         <p>
           {tr(
-            "按行比较文本，适合代码、配置、SQL、日志和普通文本。单侧最多 1,200 行，避免浏览器在超大文本比较时占用过多内存。",
+            "按行比较文本，适合代码、配置、SQL、日志和普通文本。单侧最多 1,200 行，两侧合计最多 5 MiB；比较在后台运行，可随时取消。复制结果包含文件头和差异块，可作为统一 Diff 补丁使用。",
           )}
         </p>
       </section>

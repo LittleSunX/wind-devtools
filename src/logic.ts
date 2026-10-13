@@ -43,7 +43,7 @@ export function processTool(
   input: string,
   options: Partial<AppOptions> & JsonOptions,
 ): string {
-  checkInput(input);
+  checkInput(input, id);
   switch (id) {
     case "json":
       return jsonTool(input, options);

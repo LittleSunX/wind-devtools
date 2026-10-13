@@ -142,6 +142,30 @@ describe("Cron dialects", () => {
   });
 });
 describe("input guard", () => {
+  it("allows meaningful whitespace for codecs and text operations", () => {
+    expect(
+      processTool("codec", " \n", {
+        codec: "base64",
+        codecDirection: "encode",
+      }),
+    ).toBe("IAo=");
+    expect(
+      processTool("codec", " \n", { codec: "url", codecDirection: "encode" }),
+    ).toBe("%20%0A");
+    expect(processTool("text", " \n ", { textAction: "remove-empty" })).toBe(
+      "",
+    );
+    expect(processTool("text", " ", { textAction: "trim-lines" })).toBe("");
+  });
+
+  it("still rejects truly empty codec/text inputs and oversized whitespace", () => {
+    expect(() => processTool("codec", "", {})).toThrow("先输入");
+    expect(() => processTool("text", "", {})).toThrow("先输入");
+    expect(() => processTool("text", " ".repeat(MAX_BYTES + 1), {})).toThrow(
+      "5 MiB",
+    );
+  });
+
   it("rejects empty and oversized UTF-8 input", () => {
     expect(() => processTool("json", " ", {})).toThrow("先输入");
     expect(() =>

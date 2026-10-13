@@ -12,6 +12,7 @@ import {
 
 export function useToolExecution() {
   const [output, setOutput] = useState("");
+  const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState<Message>("");
   const [busy, setBusy] = useState(false);
   const worker = useRef<Worker | null>(null);
@@ -27,6 +28,7 @@ export function useToolExecution() {
   function clear() {
     stop();
     setOutput("");
+    setHasResult(false);
     setError("");
   }
 
@@ -46,7 +48,7 @@ export function useToolExecution() {
   ) {
     clear();
     try {
-      checkInput(input);
+      checkInput(input, id);
     } catch (failure) {
       setError(
         failure instanceof Error ? failure.message : "处理失败，请检查输入。",
@@ -69,6 +71,7 @@ export function useToolExecution() {
           response.status === "error" ? "invalid_input" : undefined,
         );
         setOutput(response.status === "success" ? response.result : "");
+        setHasResult(response.status === "success");
         setError(response.status === "error" ? response.error : "");
         stop();
       };
@@ -93,5 +96,5 @@ export function useToolExecution() {
     }
   }
 
-  return { output, error, busy, stop, clear, run };
+  return { output, hasResult, error, busy, stop, clear, run };
 }

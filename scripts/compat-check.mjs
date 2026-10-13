@@ -1,6 +1,7 @@
 import { chromium, firefox, webkit, expect } from "@playwright/test";
 import assert from "node:assert/strict";
 import { checkPreviewRecovery } from "./canvas-preview-checks.mjs";
+import { checkCanvasHighlightRecovery } from "./canvas-highlight-checks.mjs";
 import { mkdir } from "node:fs/promises";
 import {
   canvasTools,
@@ -20,17 +21,8 @@ for (const [name, engine] of [
     viewport: { width: 1440, height: 1200 },
   });
   page.setDefaultTimeout(15000);
-  const {
-    download,
-    editor,
-    artwork,
-    close,
-    field,
-    ready,
-    openPopover,
-    scale,
-    png,
-  } = canvasTools(page);
+  const { editor, artwork, close, field, ready, openPopover, scale, png } =
+    canvasTools(page);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   try {
@@ -123,19 +115,7 @@ for (const [name, engine] of [
     await editor.dispatchEvent("compositionend", { data: "中文输入测试" });
     await ready();
     await expect(editor).toHaveValue("中文输入测试");
-    await page.route("**/assets/code-image.worker-*.js", (route) =>
-      route.fulfill({
-        contentType: "text/javascript",
-        body: 'self.onmessage=e=>setTimeout(()=>self.postMessage({segments:[{text:e.data.code,type:""}]}),800)',
-      }),
-    );
-    await editor.fill('const privateValue = "PRIVATE_SOURCE";');
-    await expect(download).toBeDisabled();
-    await expect(page.locator(".canvas-highlight")).toHaveText(
-      /PRIVATE_SOURCE/,
-    );
-    await ready();
-    await page.unroute("**/assets/code-image.worker-*.js");
+    await checkCanvasHighlightRecovery(page);
     await (await field("窗口标题")).fill("PRIVATE_TITLE");
     await ready();
     await page.reload();

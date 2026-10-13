@@ -1,12 +1,11 @@
 import { jsonTool } from "./json";
 import type { JsonTypeOptions } from "./shared";
 
-type JsonValue =
-  null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+type JavaNumberType = "Long" | "BigInteger" | "Double" | "BigDecimal";
 
 type Shape =
   | { kind: "null" | "boolean" | "string" }
-  | { kind: "number"; integer: boolean }
+  | { kind: "number"; javaType: JavaNumberType; doubleSafe: boolean }
   | { kind: "array"; element?: Shape }
   | {
       kind: "object";
@@ -15,34 +14,72 @@ type Shape =
     }
   | { kind: "union"; variants: Shape[] };
 
-function parseJson(input: string): JsonValue {
-  jsonTool(input, { action: "validate" });
-  return JSON.parse(input) as JsonValue;
+function decimalValue(token: string) {
+  const [, sign, integer, fraction = "", exponent = "0"] =
+    /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(token)!;
+  const digits = (integer + fraction).replace(/^0+/, "");
+  if (!digits) return "0";
+  const significant = digits.replace(/0+$/, "");
+  return `${sign}${significant}e${Number(exponent) - fraction.length + digits.length - significant.length}`;
 }
 
-function shapeOf(value: JsonValue): Shape {
-  if (value === null) return { kind: "null" };
-  if (Array.isArray(value))
-    return {
-      kind: "array",
-      element: value
-        .map(shapeOf)
-        .reduce<Shape | undefined>((a, b) => (a ? merge(a, b) : b), undefined),
-    };
-  if (typeof value === "number")
-    return { kind: "number", integer: Number.isInteger(value) };
-  if (typeof value === "object")
-    return {
-      kind: "object",
-      count: 1,
-      fields: new Map(
-        Object.entries(value).map(([key, item]) => [
-          key,
-          { shape: shapeOf(item), count: 1 },
-        ]),
-      ),
-    };
-  return { kind: typeof value as "string" | "boolean" };
+function numberShape(token: string): Extract<Shape, { kind: "number" }> {
+  const value = Number(token);
+  // Compare exact decimal values after normalizing exponent notation and zeros.
+  // A Double is sufficient only when conversion preserves the original value.
+  const doubleSafe =
+    Number.isFinite(value) &&
+    decimalValue(token) === decimalValue(String(value));
+  let javaType: JavaNumberType;
+  if (/^-?\d+$/.test(token)) {
+    const digits = token.replace(/^-/, "");
+    const limit = token.startsWith("-")
+      ? "9223372036854775808"
+      : "9223372036854775807";
+    javaType =
+      digits.length < limit.length ||
+      (digits.length === limit.length && digits <= limit)
+        ? "Long"
+        : "BigInteger";
+  } else javaType = doubleSafe ? "Double" : "BigDecimal";
+  return { kind: "number", javaType, doubleSafe };
+}
+
+function parseShape(input: string): Shape {
+  // Infer structure from validated tokens so Java numeric type selection keeps
+  // precision that JSON.parse would discard.
+  jsonTool(input, { action: "validate" });
+  const tokens = input.match(/"(?:\\.|[^"\\])*"|[^\s{}[\],:]+|[{}[\],:]/g)!;
+  let index = 0;
+  function read(): Shape {
+    const token = tokens[index++];
+    if (token === "{") {
+      const fields = new Map<string, { shape: Shape; count: number }>();
+      while (tokens[index] !== "}") {
+        const key = JSON.parse(tokens[index++]) as string;
+        index++; // colon
+        fields.set(key, { shape: read(), count: 1 });
+        if (tokens[index] === ",") index++;
+      }
+      index++;
+      return { kind: "object", fields, count: 1 };
+    }
+    if (token === "[") {
+      let element: Shape | undefined;
+      while (tokens[index] !== "]") {
+        const item = read();
+        element = element ? merge(element, item) : item;
+        if (tokens[index] === ",") index++;
+      }
+      index++;
+      return { kind: "array", element };
+    }
+    if (token === "null") return { kind: "null" };
+    if (token === "true" || token === "false") return { kind: "boolean" };
+    if (token.startsWith('"')) return { kind: "string" };
+    return numberShape(token);
+  }
+  return read();
 }
 
 // Shapes are owned by this inference pass; merge consumes its left accumulator.
@@ -64,8 +101,20 @@ function merge(left: Shape, right: Shape): Shape {
   }
   if (left.kind !== right.kind)
     return { kind: "union", variants: [left, right] };
-  if (left.kind === "number" && right.kind === "number")
-    return { kind: "number", integer: left.integer && right.integer };
+  if (left.kind === "number" && right.kind === "number") {
+    const types = [left.javaType, right.javaType];
+    const doubleSafe = left.doubleSafe && right.doubleSafe;
+    const javaType = types.includes("BigDecimal")
+      ? "BigDecimal"
+      : types.includes("Double")
+        ? doubleSafe && !types.includes("BigInteger")
+          ? "Double"
+          : "BigDecimal"
+        : types.includes("BigInteger")
+          ? "BigInteger"
+          : "Long";
+    return { kind: "number", javaType, doubleSafe };
+  }
   if (left.kind === "array" && right.kind === "array")
     return {
       kind: "array",
@@ -110,6 +159,8 @@ class Names {
   private byPath = new Map<string, string>();
   private used = new Set<string>();
   javaType(name: string) {
+    if (name === "BigInteger" || name === "BigDecimal")
+      return `java.math.${name}`;
     return this.byPath.get("$root") === name
       ? `${name === "List" ? "java.util" : "java.lang"}.${name}`
       : name;
@@ -207,7 +258,7 @@ function java(
     case "boolean":
       return names.javaType("Boolean");
     case "number":
-      return names.javaType(shape.integer ? "Long" : "Double");
+      return names.javaType(shape.javaType);
     case "string":
       return names.javaType("String");
     case "array":
@@ -238,8 +289,7 @@ function java(
 }
 
 export function jsonTypeTool(input: string, options: JsonTypeOptions = {}) {
-  const value = parseJson(input);
-  const shape = shapeOf(value);
+  const shape = parseShape(input);
   const rootName = titleCase(options.rootName || "Root");
   const itemName = shape.kind === "array" ? `${rootName}Item` : rootName;
   if (options.target === "java") {

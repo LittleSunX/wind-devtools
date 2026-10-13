@@ -55,6 +55,55 @@ function javaCompiles(source: string, className: string) {
 }
 
 describe("generated type validity", () => {
+  it("infers Java numeric types from the original tokens and Long boundaries", () => {
+    const output = jsonTypeTool(
+      '{"max":9223372036854775807,"min":-9223372036854775808,"over":9223372036854775808,"under":-9223372036854775809,"small":1.5,"rounded":1.0000000000000001,"overflow":1e400,"underflow":1e-400,"scientific":1e3,"largeDecimal":9007199254740993.0}',
+      { target: "java" },
+    );
+    expect(output).toContain("private Long max;");
+    expect(output).toContain("private Long min;");
+    expect(output).toContain("private java.math.BigInteger over;");
+    expect(output).toContain("private java.math.BigInteger under;");
+    expect(output).toContain("private Double small;");
+    expect(output).toContain("private java.math.BigDecimal rounded;");
+    expect(output).toContain("private java.math.BigDecimal overflow;");
+    expect(output).toContain("private java.math.BigDecimal underflow;");
+    expect(output).toContain("private Double scientific;");
+    expect(output).toContain("private java.math.BigDecimal largeDecimal;");
+  });
+
+  it("promotes mixed numeric arrays to a type that preserves every sample", () => {
+    const output = jsonTypeTool(
+      '{"integers":[1,9223372036854775808],"ordinary":[1,0.5],"precise":[9007199254740993,0.5],"large":[9223372036854775808,0.5],"decimals":[0.5,1.0000000000000001]}',
+      { target: "java" },
+    );
+    expect(output).toContain("private List<java.math.BigInteger> integers;");
+    expect(output).toContain("private List<Double> ordinary;");
+    for (const field of ["precise", "large", "decimals"])
+      expect(output).toContain(`private List<java.math.BigDecimal> ${field};`);
+  });
+
+  it("keeps numeric-looking strings and prototype-shaped keys as object fields", () => {
+    const input =
+      '{"__proto__":{"amount":1.0000000000000001},"value":"9223372036854775808","2":1,"1":2}';
+    const output = jsonTypeTool(input, { target: "typescript" });
+    expect(output).toContain('"value": string;');
+    expect(output).toContain('"amount": number;');
+    expect(output).toContain('"__proto__": Root__proto__;');
+    typescriptCompiles(output, `const fixture: Root = ${input}; void fixture;`);
+  });
+
+  javaIt.each(["BigInteger", "BigDecimal", "Big"])(
+    "compiles precise numeric fields when classes shadow %s",
+    (rootName) => {
+      const output = jsonTypeTool(
+        '{"integer":{},"decimal":{},"large":9223372036854775808,"precise":1.0000000000000001,"values":[9223372036854775808,0.5]}',
+        { target: "java", rootName },
+      );
+      javaCompiles(output, rootName);
+    },
+  );
+
   it("merges object arrays without losing fields and marks missing fields optional", () => {
     const input = JSON.stringify({
       items: [

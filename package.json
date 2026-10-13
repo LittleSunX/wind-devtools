@@ -3,9 +3,15 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0 || >=26.0.0"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build && tsx scripts/prerender.ts",
+    "build": "tsc -b && vite build --manifest && tsx scripts/prerender.ts --production",
+    "build:production": "tsc -b && vite build --manifest && tsx scripts/prerender.ts --production",
+    "build:preview": "tsc -b && vite build --manifest && tsx scripts/prerender.ts --preview",
+    "test:diff": "node scripts/diff-check.mjs",
     "preview": "node scripts/preview.mjs",
     "test": "vitest run",
     "test:browser": "node scripts/browser-check.mjs",
@@ -13,6 +19,7 @@
     "format:check": "prettier --check src scripts tests *.json *.ts *.js index.html",
     "test:build": "node scripts/build-check.mjs",
     "test:code-image": "node scripts/code-image-check.mjs",
+    "test:canvas-workbench": "node scripts/canvas-workbench-check.mjs",
     "test:compat": "node scripts/compat-check.mjs",
     "test:sidebar": "node scripts/sidebar-check.mjs",
     "test:i18n": "node scripts/i18n-check.mjs",

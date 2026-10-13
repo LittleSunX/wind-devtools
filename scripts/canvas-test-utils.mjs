@@ -15,7 +15,7 @@ export function canvasTools(page) {
     );
   }
   async function field(label) {
-    if (["代码", "窗口标题", "画布缩放", "风格"].includes(label)) await close();
+    if (["代码", "窗口标题", "画布缩放"].includes(label)) await close();
     else if (
       ["背景", "背景颜色", "渐变起始色", "渐变结束色", "渐变角度"].includes(
         label,
@@ -39,10 +39,19 @@ export function canvasTools(page) {
       return page
         .getByRole("dialog", { name: "背景设置", exact: true })
         .getByLabel(label, { exact: true });
-    return page.getByLabel(label, { exact: true });
+    const control = page.getByLabel(label, { exact: true });
+    if (label !== "主题" && (await control.count()) === 1) {
+      const tabId = await control.evaluate((element) =>
+        element.closest('[role="tabpanel"]')?.getAttribute("aria-labelledby"),
+      );
+      if (tabId) await page.locator(`[id="${tabId}"]`).click();
+    }
+    return control;
   }
   async function ready() {
-    await expect(download).toBeEnabled({ timeout: 15000 });
+    await expect(
+      page.getByRole("button", { name: "快速下载 PNG", exact: true }),
+    ).toBeEnabled({ timeout: 15000 });
   }
   async function openPopover(trigger) {
     await close();
@@ -120,11 +129,30 @@ export async function captureArtwork(page, artwork, path) {
     width: element.offsetWidth,
     height: element.offsetHeight,
   }));
-  // Element screenshots may gain a pixel when their page position is fractional.
-  return page.screenshot({
-    ...(path ? { path } : {}),
-    clip: { x: bounds.x, y: bounds.y, ...dimensions },
-  });
+  // PNG rendering starts at an integer origin. Align the reference screenshot
+  // too, otherwise a fractional toolbar height changes glyph antialiasing in
+  // Firefox even when wrapping and typography are identical.
+  const x = Math.ceil(bounds.x),
+    y = Math.ceil(bounds.y);
+  const previous = await artwork.evaluate(
+    (element, shift) => {
+      const frame = element.parentElement;
+      const previous = frame.style.translate;
+      frame.style.translate = `${shift.x}px ${shift.y}px`;
+      return previous;
+    },
+    { x: x - bounds.x, y: y - bounds.y },
+  );
+  try {
+    return await page.screenshot({
+      ...(path ? { path } : {}),
+      clip: { x, y, ...dimensions },
+    });
+  } finally {
+    await artwork.evaluate((element, previous) => {
+      element.parentElement.style.translate = previous;
+    }, previous);
+  }
 }
 
 export async function comparePixels(page, first, second) {

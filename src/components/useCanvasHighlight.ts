@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
-import { validateCode, type Segment } from "../utils/code-image";
-
-type HighlightResponse =
-  { segments: Segment[]; error?: never } | { error: string; segments?: never };
+import { useEffect, useRef, useState } from "react";
+import { type Segment } from "../utils/code-image";
+import { CanvasHighlightClient } from "../utils/canvas-highlight";
 
 export function useCanvasHighlight(code: string, language: string) {
   const [tokens, setTokens] = useState<{
@@ -15,71 +13,32 @@ export function useCanvasHighlight(code: string, language: string) {
     language: string;
     message: string;
   } | null>(null);
+  const client = useRef<CanvasHighlightClient | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    let worker: Worker | undefined;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    try {
-      validateCode(code);
-    } catch {
-      return;
-    }
-    const debounce = setTimeout(() => {
-      try {
-        worker = new Worker(
-          new URL("../code-image.worker.ts", import.meta.url),
-          {
-            type: "module",
-          },
-        );
-        worker.onmessage = (event: MessageEvent<HighlightResponse>) => {
-          if (cancelled) return;
-          clearTimeout(timeout);
-          worker?.terminate();
-          if (event.data.error)
-            setIssue({ code, language, message: event.data.error });
-          else if (event.data.segments) {
-            setIssue({ code, language, message: "" });
-            setTokens({ code, language, segments: event.data.segments });
-          }
-        };
-        worker.onerror = () => {
-          if (cancelled) return;
-          clearTimeout(timeout);
-          worker?.terminate();
-          setIssue({
-            code,
-            language,
-            message: "语法高亮失败，请尝试纯文本模式。",
-          });
-        };
-        worker.postMessage({ code, language });
-        timeout = setTimeout(() => {
-          cancelled = true;
-          worker?.terminate();
-          setIssue({
-            code,
-            language,
-            message: "高亮超过 3 秒，请精简代码或使用纯文本模式。",
-          });
-        }, 3000);
-      } catch {
-        if (!cancelled)
-          setIssue({
-            code,
-            language,
-            message: "无法启动语法高亮，请检查浏览器设置。",
-          });
-      }
-    }, 120);
+    const active = new CanvasHighlightClient(
+      () =>
+        new Worker(new URL("../code-image.worker.ts", import.meta.url), {
+          type: "module",
+        }),
+      (result) => {
+        const { code, language } = result;
+        if (result.error !== undefined)
+          setIssue({ code, language, message: result.error });
+        else {
+          setIssue({ code, language, message: "" });
+          setTokens({ code, language, segments: result.segments });
+        }
+      },
+    );
+    client.current = active;
     return () => {
-      cancelled = true;
-      clearTimeout(debounce);
-      clearTimeout(timeout);
-      worker?.terminate();
+      active.dispose();
+      client.current = null;
     };
-  }, [code, language]);
+  }, []);
+
+  useEffect(() => client.current?.request(code, language), [code, language]);
 
   const highlighted = tokens?.code === code && tokens.language === language;
   return {

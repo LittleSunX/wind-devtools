@@ -10,11 +10,11 @@ describe("language examples", () => {
   });
   it.each(languages.map(([id]) => id))(
     "validates and highlights the %s example without losing text",
-    (language) => {
+    async (language) => {
       const source = sampleForLanguage(language);
       expect(() => validateCode(source)).not.toThrow();
       expect(
-        highlightCode(source, language)
+        (await highlightCode(source, language))
           .map((segment) => segment.text)
           .join(""),
       ).toBe(source);

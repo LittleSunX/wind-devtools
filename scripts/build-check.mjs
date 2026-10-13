@@ -12,6 +12,38 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
+const manifest = JSON.parse(await readFile("dist/.vite/manifest.json", "utf8"));
+const initialModules = new Set();
+function visitInitial(key) {
+  if (initialModules.has(key)) return;
+  initialModules.add(key);
+  for (const dependency of manifest[key]?.imports ?? [])
+    visitInitial(dependency);
+}
+assert.ok(
+  manifest["index.html"]?.isEntry,
+  "Vite manifest must contain the app entry",
+);
+visitInitial("index.html");
+for (const route of ["ToolDirectory", "TextToolPage", "CodeImage", "DiffTool"])
+  assert.ok(
+    !initialModules.has(`src/components/${route}.tsx`),
+    `${route} must remain a route chunk`,
+  );
+const canvasCss = manifest["src/components/CodeImage.tsx"].css ?? [];
+assert.ok(canvasCss.length, "Canvas CSS must belong to its route chunk");
+const homeHtml = await readFile("dist/tools/index.html", "utf8");
+const canvasHtml = await readFile("dist/tools/code-image/index.html", "utf8");
+for (const css of canvasCss) {
+  assert.ok(
+    canvasHtml.includes(`href="/${css}"`),
+    "Pre-rendered canvas must load its CSS before hydration",
+  );
+  assert.ok(
+    !homeHtml.includes(`href="/${css}"`),
+    "Home must not load canvas CSS",
+  );
+}
 const toolIds = [
   "json",
   "timestamp",
@@ -36,6 +68,10 @@ for (const tool of toolIds) {
     );
     assert.ok(html.includes("<h1>"));
     assert.ok(!html.includes("<!--app-html-->"));
+    assert.ok(
+      html.includes('<div id="root" inert>'),
+      "Pre-rendered UI waits for hydration before accepting input",
+    );
     assert.ok(html.includes('name="description"'));
     assert.ok(html.includes(`<html lang="${lang}">`));
     if (lang === "en")
@@ -63,7 +99,11 @@ try {
     ],
     {
       cwd: fixture,
-      env: { ...process.env, SITE_URL: "https://wind-devtools.test" },
+      env: {
+        ...process.env,
+        SITE_URL: "https://wind-devtools.test",
+        VERCEL_ENV: "production",
+      },
       encoding: "utf8",
     },
   );
@@ -158,7 +198,15 @@ try {
       path.join(root, "tsconfig.json"),
       path.join(root, "scripts/prerender.ts"),
     ],
-    { cwd: fixture, env: { ...process.env, SITE_URL: "" }, encoding: "utf8" },
+    {
+      cwd: fixture,
+      env: {
+        ...process.env,
+        SITE_URL: "https://wind-devtools.test",
+        VERCEL_ENV: "preview",
+      },
+      encoding: "utf8",
+    },
   );
   assert.equal(preview.status, 0, preview.stdout + preview.stderr);
   assert.ok(
@@ -167,6 +215,11 @@ try {
     ),
   );
   await assert.rejects(access(path.join(fixture, "dist/sitemap.xml")));
+  assert.ok(
+    (
+      await readFile(path.join(fixture, "dist/tools/index.html"), "utf8")
+    ).includes('name="robots" content="noindex"'),
+  );
 
   console.log(
     "Build checks passed: bilingual static pages, canonical/hreflang, sitemap, preview robots and 404 metadata.",

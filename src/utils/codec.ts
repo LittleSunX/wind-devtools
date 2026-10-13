@@ -28,7 +28,7 @@ export function codecTool(input: string, options: CodecOptions) {
     try {
       return direction === "encode"
         ? encodeURIComponent(input)
-        : decodeURIComponent(input.trim());
+        : decodeURIComponent(input);
     } catch {
       throw new Error("URL 解码失败，请检查百分号编码是否完整。");
     }

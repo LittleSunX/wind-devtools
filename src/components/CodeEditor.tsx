@@ -1,6 +1,7 @@
 import { tr, useLocale } from "../i18n/react";
 import { useEffect, useRef, useState } from "react";
 import type { createEditor, EditorOptions } from "./editor-runtime";
+import "./code-editor.css";
 
 export default function CodeEditor(rawProps: EditorOptions) {
   const locale = useLocale();

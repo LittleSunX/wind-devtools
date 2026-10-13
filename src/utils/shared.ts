@@ -153,8 +153,10 @@ export function createToolRequest(
   }
 }
 export const MAX_BYTES = 5 * 1024 * 1024;
-export function checkInput(input: string) {
-  if (!input.trim()) throw new Error("请先输入需要处理的内容。");
+export function checkInput(input: string, id?: ProcessableToolId) {
+  const allowsWhitespace = id === "codec" || id === "text";
+  if (!(allowsWhitespace ? input.length : input.trim().length))
+    throw new Error("请先输入需要处理的内容。");
   if (new TextEncoder().encode(input).length > MAX_BYTES)
     throw new Error("输入超过 5 MiB，请拆分后再处理。");
 }

@@ -81,7 +81,15 @@ export default function TextToolPage({
     current?.id === "json" || current?.id === "sql" ? current.id : undefined;
   const [options, setOptions] = useState<AppOptions>(defaultOptions);
   const [now, setNow] = useState<number>();
-  const { output, error, busy, stop, clear, run: execute } = useToolExecution();
+  const {
+    output,
+    hasResult,
+    error,
+    busy,
+    stop,
+    clear,
+    run: execute,
+  } = useToolExecution();
   function invalidate() {
     clear();
     setNotice("");
@@ -198,6 +206,7 @@ export default function TextToolPage({
           </span>
           <strong>{now ?? "—"}</strong>
           <button
+            {...{ autoComplete: "off" }}
             onClick={() => {
               option("direction", "timestamp");
               setOptions((o) => ({
@@ -404,6 +413,7 @@ export default function TextToolPage({
             ["每月 1 日", "0 0 1 * *", "0 0 0 1 * ?"],
           ].map(([label, linux, quartz]) => (
             <button
+              {...{ autoComplete: "off" }}
               key={label}
               onClick={() =>
                 changeInput(options.mode === "linux" ? linux : quartz)
@@ -430,21 +440,35 @@ export default function TextToolPage({
               {tr("输入")} <span>INPUT</span>
             </label>
             <button
+              {...{ autoComplete: "off" }}
               onClick={() =>
                 input ? setReplace(true) : changeInput(example())
               }
             >
               {tr("加载示例")}
             </button>
-            <button onClick={() => changeInput("")}>{tr("清空")}</button>
+            <button
+              {...{ autoComplete: "off" }}
+              onClick={() => changeInput("")}
+            >
+              {tr("清空")}
+            </button>
           </div>
           {replace && (
             <div className="replace-prompt">
               {tr("用示例替换现有输入？")}
-              <button onClick={() => changeInput(example())}>
+              <button
+                {...{ autoComplete: "off" }}
+                onClick={() => changeInput(example())}
+              >
                 {tr("替换")}
               </button>
-              <button onClick={() => setReplace(false)}>{tr("取消")}</button>
+              <button
+                {...{ autoComplete: "off" }}
+                onClick={() => setReplace(false)}
+              >
+                {tr("取消")}
+              </button>
             </div>
           )}
           {codeLanguage ? (
@@ -462,6 +486,7 @@ export default function TextToolPage({
             />
           ) : (
             <textarea
+              autoComplete="off"
               aria-label={tr("输入")}
               id="tool-input"
               aria-invalid={!!error}
@@ -485,7 +510,12 @@ export default function TextToolPage({
             </div>
           )}
           <div className="action-bar">
-            <button className="primary" disabled={busy} onClick={() => run()}>
+            <button
+              {...{ autoComplete: "off" }}
+              className="primary"
+              disabled={busy}
+              onClick={() => run()}
+            >
               {tr(
                 current.id === "timestamp"
                   ? "转换"
@@ -505,16 +535,25 @@ export default function TextToolPage({
             </button>
             {current.id === "json" && (
               <>
-                <button disabled={busy} onClick={() => run("minify")}>
+                <button
+                  {...{ autoComplete: "off" }}
+                  disabled={busy}
+                  onClick={() => run("minify")}
+                >
                   {tr("压缩")}
                 </button>
-                <button disabled={busy} onClick={() => run("validate")}>
+                <button
+                  {...{ autoComplete: "off" }}
+                  disabled={busy}
+                  onClick={() => run("validate")}
+                >
                   {tr("校验")}
                 </button>
               </>
             )}
             {busy && (
               <button
+                {...{ autoComplete: "off" }}
                 onClick={() => {
                   stop();
                   setNotice("已取消处理");
@@ -534,13 +573,25 @@ export default function TextToolPage({
             <label htmlFor="tool-output">
               {tr("结果")} <span>OUTPUT</span>
             </label>
-            <button disabled={!output} onClick={copy}>
+            <button
+              {...{ autoComplete: "off" }}
+              disabled={!hasResult}
+              onClick={copy}
+            >
               {tr("复制")}
             </button>
-            <button disabled={!output} onClick={download}>
+            <button
+              {...{ autoComplete: "off" }}
+              disabled={!hasResult}
+              onClick={download}
+            >
               {tr("下载")}
             </button>
-            <button disabled={!output} onClick={sendToCanvas}>
+            <button
+              {...{ autoComplete: "off" }}
+              disabled={!output}
+              onClick={sendToCanvas}
+            >
               {tr("发送到代码画布")}
             </button>
           </div>
@@ -558,6 +609,7 @@ export default function TextToolPage({
               />
             ) : (
               <textarea
+                autoComplete="off"
                 id="tool-output"
                 aria-label={tr("处理结果")}
                 readOnly
@@ -574,7 +626,9 @@ export default function TextToolPage({
                       ? "正在本地处理…"
                       : error
                         ? "请检查输入"
-                        : "准备好，随时开始",
+                        : hasResult
+                          ? "处理完成"
+                          : "准备好，随时开始",
                   )}
                 </strong>
                 <p>
@@ -583,7 +637,9 @@ export default function TextToolPage({
                       ? "你可以随时取消处理"
                       : error
                         ? "修正后再次执行，即可查看结果"
-                        : "处理结果将显示在这里",
+                        : hasResult
+                          ? "结果为空（0 字符）。"
+                          : "处理结果将显示在这里",
                   )}
                 </p>
               </div>
@@ -591,14 +647,14 @@ export default function TextToolPage({
           </div>
           <div className="editor-footer">
             <span
-              className={`result-status ${busy ? "is-busy" : error ? "is-error" : output ? "is-done" : ""}`}
+              className={`result-status ${busy ? "is-busy" : error ? "is-error" : hasResult ? "is-done" : ""}`}
             >
               {tr(
                 busy
                   ? "正在处理"
                   : error
                     ? "输入有误"
-                    : output
+                    : hasResult
                       ? "处理完成"
                       : "等待处理",
               )}

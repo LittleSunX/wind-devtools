@@ -46,6 +46,7 @@ export default function CanvasPopover({
   return (
     <div className="shot-popover-anchor">
       <button
+        {...{ autoComplete: "off" }}
         ref={trigger}
         popoverTarget={id}
         disabled={disabled}
@@ -116,6 +117,7 @@ export default function CanvasPopover({
         <div className="shot-popover-heading">
           <strong>{tr(title)}</strong>
           <button
+            {...{ autoComplete: "off" }}
             aria-label={tr("关闭{{name}}", { name: tr(title) })}
             popoverTarget={id}
             popoverTargetAction="hide"

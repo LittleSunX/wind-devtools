@@ -19,10 +19,12 @@ import { readPreferences, writePreferences } from "../utils/canvas-preferences";
 import { readCanvasTransfer } from "../utils/canvas-transfer";
 import { sampleForLanguage } from "../utils/code-samples";
 import CanvasActions from "./CanvasActions";
+import "./code-image.css";
 import {
   canvasFont,
   defaults,
   themes,
+  themeChoices,
   imagePresets,
   sampleCode,
   validateCode,
@@ -34,7 +36,7 @@ import {
 } from "../utils/code-image";
 
 export default function CodeImage() {
-  useLocale();
+  const locale = useLocale();
   const [code, setCode] = useState(sampleCode);
   const [language, setLanguage] = useState("typescript");
   const [options, setOptions] = useState<ImageOptions>(defaults);
@@ -78,11 +80,11 @@ export default function CodeImage() {
   const artwork = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const [available, setAvailable] = useState(1000);
-  const [autoWidth, setAutoWidth] = useState(720);
+  const [autoWidth, setAutoWidth] = useState(800);
   useLayoutEffect(() => {
     if (stage.current)
       setWorkspaceTop(stage.current.getBoundingClientRect().top);
-  }, [inspector, viewport]);
+  }, [inspector, viewport, available, locale, replace]);
   const [size, setSize] = useState({
     width: 0,
     height: 0,
@@ -113,7 +115,7 @@ export default function CodeImage() {
     try {
       const transfer = readCanvasTransfer(sessionStorage);
       if (transfer) {
-        setCode(transfer.code);
+        setCode(transfer.code.replace(/\r\n?/g, "\n"));
         setLanguage(transfer.language);
         nextOptions = { ...nextOptions, title: transfer.title };
         setNotice("已接收其他工具的处理结果，可以直接调整样式并导出。");
@@ -166,13 +168,13 @@ export default function CodeImage() {
       if (ruler)
         setAutoWidth(
           Math.max(
-            420,
+            800,
             ruler.offsetWidth +
               1 +
               (options.lineNumbers ? (gutter?.offsetWidth || 0) + 24 : 0) +
-              options.codePadding * 2,
-          ) +
-            options.padding * 2,
+              options.codePadding * 2 +
+              options.padding * 2,
+          ),
         );
       setSize({
         width: node.offsetWidth,
@@ -189,7 +191,7 @@ export default function CodeImage() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [code, options, fontReady, tokens]);
-  const { error, canExport } = canvasReadiness({
+  const { error, canExport, canExportSvg, pngError } = canvasReadiness({
     code,
     options,
     size,
@@ -199,13 +201,17 @@ export default function CodeImage() {
     fontError,
     highlightError,
   });
+  const viewHeight =
+    viewport.width <= 800
+      ? viewport.height * (inspector ? 0.36 : 0.55)
+      : Math.max(500, viewport.height - workspaceTop - 132);
   const displayScale =
     zoom === "fit"
       ? Math.min(
           1,
           Math.max(0.1, (available - 48) / (size.width || 1)),
-          inspector && viewport.width <= 800
-            ? Math.max(0.1, (viewport.height * 0.36 - 48) / (size.height || 1))
+          viewport.width <= 800
+            ? Math.max(0.1, (viewHeight - 50) / (size.height || 1))
             : 1,
         )
       : Number(zoom);
@@ -229,7 +235,7 @@ export default function CodeImage() {
     setOptions((previous) => ({ ...previous, [key]: value }));
   }
   function changeCode(value: string) {
-    setCode(value);
+    setCode(value.replace(/\r\n?/g, "\n"));
     setReplace(false);
     setNotice("");
   }
@@ -317,11 +323,57 @@ export default function CodeImage() {
       </select>
     </label>
   );
+  const presetControl = select(
+    "风格",
+    imagePresets.find(
+      (p) =>
+        p.theme === options.theme &&
+        p.background === options.background &&
+        p.padding === options.padding &&
+        p.fontSize === options.fontSize &&
+        p.fontFamily === options.fontFamily &&
+        p.lineHeight === options.lineHeight &&
+        p.codePadding === options.codePadding &&
+        p.lineNumbers === options.lineNumbers &&
+        p.windowStyle === options.windowStyle &&
+        p.windowRadius === options.windowRadius &&
+        p.shadow === options.shadow &&
+        p.aspectRatio === options.aspectRatio &&
+        (!("color" in p) || p.color === options.color),
+    )?.name || "custom",
+    [["custom", "自定义"], ...imagePresets.map((p) => [p.name, p.name])],
+    (name) => {
+      const preset = imagePresets.find((p) => p.name === name);
+      if (!preset) return;
+      setNotice("");
+      setOptions((o) => ({
+        ...o,
+        theme: preset.theme,
+        background: preset.background,
+        padding: preset.padding,
+        fontSize: preset.fontSize,
+        fontFamily: preset.fontFamily,
+        lineHeight: preset.lineHeight,
+        codePadding: preset.codePadding,
+        lineNumbers: preset.lineNumbers,
+        windowStyle: preset.windowStyle,
+        windowRadius: preset.windowRadius,
+        shadow: preset.shadow,
+        aspectRatio: preset.aspectRatio,
+        windowBar: true,
+        ...("color" in preset ? { color: preset.color } : {}),
+      }));
+    },
+  );
   return (
     <>
       <header className="canvas-heading">
-        <h1>{tr("代码画布")}</h1>
-        <span>{tr("点击代码直接编辑")}</span>
+        <div>
+          <span className="canvas-eyebrow">CODE CANVAS</span>
+          <h1>{tr("代码画布")}</h1>
+          <p>{tr("编辑、调色、导出，让代码成为作品。")}</p>
+        </div>
+        <span className="canvas-local-badge">{tr("本地处理 · 无水印")}</span>
       </header>
       <div
         className="shot-toolbar canvas-toolbar"
@@ -359,6 +411,7 @@ export default function CodeImage() {
                   <h3>{tr(group.label)}</h3>
                   {items.map(([id, name]) => (
                     <button
+                      {...{ autoComplete: "off" }}
                       key={id}
                       value={id}
                       aria-pressed={language === id}
@@ -384,58 +437,26 @@ export default function CodeImage() {
             ) && <p>{tr("未找到匹配语言。")}</p>}
           </div>
         </CanvasPopover>
-        {select(
-          "风格",
-          imagePresets.find(
-            (p) =>
-              p.theme === options.theme &&
-              p.background === options.background &&
-              p.padding === options.padding &&
-              p.fontSize === options.fontSize &&
-              p.fontFamily === options.fontFamily &&
-              p.lineHeight === options.lineHeight &&
-              p.codePadding === options.codePadding &&
-              p.lineNumbers === options.lineNumbers &&
-              p.windowStyle === options.windowStyle &&
-              p.windowRadius === options.windowRadius &&
-              p.shadow === options.shadow &&
-              p.aspectRatio === options.aspectRatio &&
-              (!("color" in p) || p.color === options.color),
-          )?.name || "custom",
-          [["custom", "自定义"], ...imagePresets.map((p) => [p.name, p.name])],
-          (name) => {
-            const preset = imagePresets.find((p) => p.name === name);
-            if (!preset) return;
-            setNotice("");
-            setOptions((o) => ({
-              ...o,
-              theme: preset.theme,
-              background: preset.background,
-              padding: preset.padding,
-              fontSize: preset.fontSize,
-              fontFamily: preset.fontFamily,
-              lineHeight: preset.lineHeight,
-              codePadding: preset.codePadding,
-              lineNumbers: preset.lineNumbers,
-              windowStyle: preset.windowStyle,
-              windowRadius: preset.windowRadius,
-              shadow: preset.shadow,
-              aspectRatio: preset.aspectRatio,
-              windowBar: true,
-              ...("color" in preset ? { color: preset.color } : {}),
-            }));
-          },
+        {select("主题", options.theme, themeChoices, (value) =>
+          update("theme", value),
         )}
         <button
+          {...{ autoComplete: "off" }}
           ref={backgroundTrigger}
           aria-controls={inspectorId}
           aria-expanded={inspector === "background"}
           disabled={exporting}
           onClick={() => toggleInspector("background")}
         >
+          <span
+            className="canvas-background-swatch"
+            style={{ background }}
+            aria-hidden="true"
+          />
           {tr("背景")} <span aria-hidden="true">⌄</span>
         </button>
         <button
+          {...{ autoComplete: "off" }}
           ref={appearanceTrigger}
           aria-controls={inspectorId}
           aria-expanded={inspector === "appearance"}
@@ -458,6 +479,7 @@ export default function CodeImage() {
               )}
             </p>
             <button
+              {...{ autoComplete: "off" }}
               disabled={exporting}
               onClick={() => {
                 document
@@ -470,6 +492,7 @@ export default function CodeImage() {
               {tr("加载示例")}
             </button>
             <button
+              {...{ autoComplete: "off" }}
               disabled={exporting}
               onClick={(event) => {
                 changeCode("");
@@ -503,6 +526,9 @@ export default function CodeImage() {
           artwork={artwork}
           options={options}
           canExport={canExport}
+          canExportSvg={canExportSvg}
+          pngError={pngError}
+          size={size}
           exporting={exporting}
           setExporting={setExporting}
           setNotice={setNotice}
@@ -512,12 +538,27 @@ export default function CodeImage() {
       {replace && (
         <div className="replace-prompt">
           {tr("用当前语言的示例替换代码？")}
-          <button onClick={() => changeCode(sampleForLanguage(language))}>
+          <button
+            {...{ autoComplete: "off" }}
+            onClick={() => changeCode(sampleForLanguage(language))}
+          >
             {tr("替换")}
           </button>
-          <button onClick={() => setReplace(false)}>{tr("取消")}</button>
+          <button
+            {...{ autoComplete: "off" }}
+            onClick={() => setReplace(false)}
+          >
+            {tr("取消")}
+          </button>
         </div>
       )}
+      <div className="canvas-edit-hint">
+        <span>{tr("点击代码直接编辑，或拖入代码文件")}</span>
+        <kbd>Tab</kbd>
+        <span>{tr("缩进")}</span>
+        <kbd>Ctrl / ⌘ + F</kbd>
+        <span>{tr("查找")}</span>
+      </div>
       <div
         className={`canvas-workspace ${inspector ? "has-inspector" : ""}`}
         style={{ "--workspace-top": `${workspaceTop}px` } as CSSProperties}
@@ -676,6 +717,7 @@ export default function CodeImage() {
                 {tr(inspector === "background" ? "背景设置" : "外观设置")}
               </strong>
               <button
+                {...{ autoComplete: "off" }}
                 aria-label={tr("关闭{{name}}", {
                   name: tr(
                     inspector === "background" ? "背景设置" : "外观设置",
@@ -694,6 +736,7 @@ export default function CodeImage() {
               />
             ) : (
               <CanvasSettings
+                presetControl={presetControl}
                 options={options}
                 update={update}
                 exporting={exporting}
@@ -726,7 +769,9 @@ export default function CodeImage() {
             value={zoom}
             onChange={(event) => setZoom(event.target.value)}
           >
-            <option value="fit">{tr("适应宽度")}</option>
+            <option value="fit">
+              {tr(viewport.width <= 800 ? "适应画布" : "适应宽度")}
+            </option>
             <option value="0.5">50%</option>
             <option value="0.75">75%</option>
             <option value="1">100%</option>
@@ -740,7 +785,7 @@ export default function CodeImage() {
         </div>
       )}
       <div className="notice" role="status">
-        {tr(notice || (!error && !canExport ? "正在准备字体与高亮…" : ""))}
+        {tr(notice || (!error && !canExportSvg ? "正在准备字体与高亮…" : ""))}
       </div>
       <section className="instructions canvas-instructions">
         <details>

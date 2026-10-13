@@ -2,19 +2,34 @@ import { chromium, firefox, webkit, expect } from "@playwright/test";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 const base = process.env.TEST_URL || "http://localhost:4173";
+const selectedBrowsers = process.env.I18N_BROWSERS?.split(",");
 await mkdir("artifacts", { recursive: true });
 for (const [name, engine] of [
   ["chromium", chromium],
   ["firefox", firefox],
   ["webkit", webkit],
 ]) {
-  const browser = await engine.launch();
+  if (selectedBrowsers && !selectedBrowsers.includes(name)) continue;
+  const browser = await engine.launch(
+    name === "chromium" && process.env.PW_CHANNEL === "chrome"
+      ? { channel: "chrome" }
+      : {},
+  );
   const context = await browser.newContext({
     locale: "en-US",
     viewport: { width: 1440, height: 1120 },
   });
   const page = await context.newPage();
   page.setDefaultTimeout(15000);
+  const goto = async (url) => {
+    const response = await page.goto(url);
+    await expect(page.locator("#root")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+      { timeout: 15000 },
+    );
+    return response;
+  };
   // Exercise slower worker startup without relying on arbitrary page sleeps.
   const workerDelay = Number(process.env.I18N_WORKER_DELAY_MS || 0);
   if (workerDelay > 0) {
@@ -107,9 +122,9 @@ for (const [name, engine] of [
     );
   };
   try {
-    await page.goto(base + "/");
+    await goto(base + "/");
     await expect(page).toHaveURL(/\/en\/tools$/);
-    await page.goto(base + "/en/tools");
+    await goto(base + "/en/tools");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page).toHaveURL(/\/en\/tools$/);
     const trigger = page.locator(".language-trigger");
@@ -142,6 +157,10 @@ for (const [name, engine] of [
       "timestamp",
     );
     await page.reload();
+    await expect(page.locator("#root")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+    );
     await expect(page.locator(".language-trigger")).toHaveText("中文");
     await switchTo("en");
     await expect(page).toHaveURL(/\/en\/tools$/);
@@ -150,7 +169,7 @@ for (const [name, engine] of [
     await switchTo("zh");
     await expect(page.locator(".tool-card")).toHaveCount(count);
     await switchTo("en");
-    await page.goto(base + "/en/tools/json");
+    await goto(base + "/en/tools/json");
     await page.getByRole("button", { name: "Format", exact: true }).click();
     await expect(page.getByRole("alert")).toHaveText(
       "Enter some content first.",
@@ -169,12 +188,12 @@ for (const [name, engine] of [
       "text",
       "code-image",
     ]) {
-      await page.goto(`${base}/en/tools/${tool}`);
+      await goto(`${base}/en/tools/${tool}`);
       await expect(page.locator("html")).toHaveAttribute("lang", "en");
       if (tool === "code-image") await canvasReady();
       await noChineseUI();
     }
-    const missing = await page.goto(base + "/en/missing");
+    const missing = await goto(base + "/en/missing");
     assert.equal(missing.status(), 404);
     await page.getByRole("heading", { name: /does not exist/i }).waitFor();
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -196,7 +215,7 @@ for (const [name, engine] of [
       ["jwt", "Decode JWT", "Time information (based on the device clock)"],
       ["cron", "Calculate schedule", "Upcoming runs"],
     ]) {
-      await page.goto(`${base}/en/tools/${tool}`);
+      await goto(`${base}/en/tools/${tool}`);
       await page
         .getByRole("button", { name: "Load example", exact: true })
         .click();
@@ -205,12 +224,19 @@ for (const [name, engine] of [
         new RegExp(expected.replace(/[()]/g, "\\$&")),
       );
     }
-    await page.goto(base + "/en/tools/code-image");
+    await goto(base + "/en/tools/code-image");
     await canvasReady();
     const code = page.getByLabel("Code", { exact: true });
     await code.fill('const greeting = "中文 {{name}}";');
     await page.getByLabel("Window title", { exact: true }).fill("保留标题.ts");
+    await page.getByRole("button", { name: "Appearance", exact: true }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Appearance", exact: true }),
+    ).toBeVisible();
     await page.getByLabel("Style", { exact: true }).selectOption("暖纸手记");
+    await page
+      .getByRole("button", { name: "Close Appearance", exact: true })
+      .click();
     await expect(
       page.getByRole("button", { name: "Export", exact: true }),
     ).toBeEnabled();
@@ -221,9 +247,16 @@ for (const [name, engine] of [
     await expect(page.getByLabel("窗口标题", { exact: true })).toHaveValue(
       "保留标题.ts",
     );
+    await page.getByRole("button", { name: "外观设置", exact: true }).click();
+    await expect(
+      page.getByRole("dialog", { name: "外观设置", exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel("风格", { exact: true })).toHaveValue(
       "暖纸手记",
     );
+    await page
+      .getByRole("button", { name: "关闭外观设置", exact: true })
+      .click();
     await switchTo("en");
     await page.getByRole("button", { name: "Appearance", exact: true }).click();
     await expect(
@@ -234,7 +267,7 @@ for (const [name, engine] of [
     await page
       .getByRole("button", { name: "Close Appearance", exact: true })
       .click();
-    await page.goto(base + "/en/tools/codec");
+    await goto(base + "/en/tools/codec");
     const input = page.getByLabel("Input", { exact: true });
     await input.fill("代码画布 {{name}}");
     await page.getByRole("button", { name: "Convert", exact: true }).click();
@@ -251,7 +284,7 @@ for (const [name, engine] of [
     await expect(page.getByLabel("处理结果", { exact: true })).toHaveValue(
       result,
     );
-    await page.goto(base + "/tools/json");
+    await goto(base + "/tools/json");
     await expect(page.locator(".cm-content").first()).toBeVisible();
     await expect(page.locator(".code-editor textarea")).toHaveCount(0);
     await page
@@ -288,7 +321,7 @@ for (const [name, engine] of [
         "/en/tools/json",
         "/en/tools/code-image",
       ]) {
-        await page.goto(base + route);
+        await goto(base + route);
         await expect(page.locator("html")).toHaveAttribute("lang", "en");
         if (route === "/en/tools/code-image") await canvasReady();
         assert.ok(
@@ -314,6 +347,10 @@ for (const [name, engine] of [
     });
     const other = await blocked.newPage();
     await other.goto(base + "/en/tools");
+    await expect(other.locator("#root")).toHaveAttribute(
+      "data-hydrated",
+      "true",
+    );
     await expect(other.locator("html")).toHaveAttribute("lang", "en");
     await other.locator(".language-trigger").click();
     await other

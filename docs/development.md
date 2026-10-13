@@ -2,29 +2,33 @@
 
 ### 技术栈
 
-| 部分       | 实现                                       |
-| ---------- | ------------------------------------------ |
-| 页面与类型 | React 19、TypeScript                       |
-| 开发与构建 | Vite、静态 HTML 预渲染                     |
-| 工具处理   | Web Worker、sql-formatter、cron-parser     |
-| 代码画布   | Prism 语法高亮、DOM 编辑与 PNG / SVG 导出 |
+| 部分       | 实现                                              |
+| ---------- | ------------------------------------------------- |
+| 页面与类型 | React 19、TypeScript                              |
+| 开发与构建 | Vite、静态 HTML 预渲染                            |
+| 工具处理   | Web Worker、sql-formatter、cron-parser            |
+| 代码画布   | Prism 语法高亮、DOM 编辑与 PNG / SVG 导出         |
 | 国际化     | i18next、react-i18next、中英文 JSON 资源          |
 | 验证       | Vitest、Playwright、ESLint、React Hooks、Prettier |
 
 ### 常用命令
 
-| 命令                      | 用途                                             |
-| ------------------------- | ------------------------------------------------ |
-| `npm run dev`             | 启动开发服务器                                   |
-| `npm run build`           | 类型检查、生产构建和静态预渲染                   |
-| `npm run preview`         | 启动生产预览，默认端口 4173                      |
-| `npm test`                | 工具逻辑、代码高亮及统计白名单测试               |
-| `npm run test:build`      | 检查构建产物、canonical、sitemap 与预览收录策略  |
-| `npm run test:browser`    | 现有文本工具、隐私、移动端、取消和超时验收       |
-| `npm run test:code-image` | PNG 内容与尺寸、透明度、剪贴板和代码图片交互验收 |
-| `npm run format`          | 格式化源码与配置                                 |
-| `npm run format:check`    | 检查代码格式                                     |
-| `npm run lint`            | 检查 TypeScript 与 React Hooks 规则               |
+| 命令                            | 用途                                                          |
+| ------------------------------- | ------------------------------------------------------------- |
+| `npm run dev`                   | 启动开发服务器                                                |
+| `npm run build`                 | 类型检查、生产构建和静态预渲染                                |
+| `npm run build:production`      | 正式站点构建，使用站点域名生成 canonical、hreflang 与 sitemap |
+| `npm run build:preview`         | 强制禁收录的预览构建，忽略生产域名配置                        |
+| `npm run test:diff`             | Diff 后台处理、取消、超时、结果失效与统一补丁验收             |
+| `npm run preview`               | 启动生产预览，默认端口 4173                                   |
+| `npm test`                      | 工具逻辑、代码高亮及统计白名单测试                            |
+| `npm run test:build`            | 检查构建产物、canonical、sitemap 与预览收录策略               |
+| `npm run test:browser`          | 现有文本工具、隐私、移动端、取消和超时验收                    |
+| `npm run test:code-image`       | PNG 内容与尺寸、透明度、剪贴板和代码图片交互验收              |
+| `npm run test:canvas-workbench` | 倍率超限恢复、SVG、设置键盘操作、移动布局与空结果验收         |
+| `npm run format`                | 格式化源码与配置                                              |
+| `npm run format:check`          | 检查代码格式                                                  |
+| `npm run lint`                  | 检查 TypeScript 与 React Hooks 规则                           |
 
 单元测试可直接运行。JSON 转类型的有效性测试会调用 `javac` 编译生成的 Java 源码；CI 安装 JDK 21，本机可将 `javac` 加入 PATH、设置 `JAVA_HOME`，或通过 `WIND_TEST_JAVAC` 指定编译器路径。未找到编译器时本机跳过两项 Java 编译测试，CI 则要求它们通过。构建检查需先执行 `npm run build`；浏览器验收还需要安装 Chrome，并保持 `npm run preview` 在另一个终端运行：
 
@@ -96,7 +100,6 @@ npm run test:compat
 
 [返回项目首页](../README.md)
 
-
 ### 国际化
 
 界面使用 `i18next` 与 `react-i18next`。配置位于 `src/i18n/index.ts`，翻译资源位于 `src/i18n/locales/zh.json` 和 `en.json`，React 组件通过 `useLocale()` 订阅语言变化，通过 `tr()` 读取文案。
@@ -113,6 +116,6 @@ npm run test:compat
 
 工具分类和风格预设保留稳定的内部值，在显示时翻译。不要翻译用户输入、代码、窗口标题或已有结果。Worker 接收当前界面语言，为新生成的说明性结果使用相应语言；错误通过原始资源键或 `MessageError` 的结构化插值数据返回，使已显示的错误也能随界面语言切换。
 
-生产构建会同时预渲染中文与英文页面，并生成各自的 `canonical`、双向 `hreflang`、`x-default` 和双语 sitemap。必须在生产构建环境设置 `SITE_URL` 为真实 HTTPS 域名；未设置时视为预览构建，`robots.txt` 会写入 `Disallow: /`，也不会生成 sitemap。
+`npm run build` 和 `build:production` 同时预渲染中文与英文页面，使用 `site.config.json` 的正式域名（可由 `SITE_URL` 覆盖）生成 `canonical`、双向 `hreflang`、`x-default` 和双语 sitemap。`build:preview` 以及 Vercel 预览环境都禁收录：`robots.txt` 写入 `Disallow: /`、页面带 `noindex`，不生成 sitemap。CI 使用显式预览构建。客户端先按路由加载页面再 hydration；预渲染通过 Vite SSR 处理同样的路由模块，利用构建 manifest 为静态 HTML 注入对应的 CSS 与预加载链接。首次挂载完成前，静态 UI 保持可见并暂时禁用交互，防止输入或点击丢失；路由加载失败时提供重新加载入口。
 
 运行 `npm run test:i18n` 验证语言 URL、偏好保存、切换时保留内容、错误与提示翻译、工具间传递、英文 404、移动端布局和存储不可用情形。该测试使用 Playwright 自带的 Chromium、Firefox、WebKit，需要先构建并启动预览。

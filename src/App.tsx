@@ -5,17 +5,27 @@ import { tr, useLocale } from "./i18n/react";
 import { pageMetadata } from "./seo";
 import { tools } from "./catalog";
 import AppLayout from "./components/AppLayout";
-import ToolDirectory from "./components/ToolDirectory";
-import TextToolPage from "./components/TextToolPage";
-import CodeImage from "./components/CodeImage";
-import DiffTool from "./components/DiffTool";
+import type { PageComponent } from "./pages";
 
-export function App({ path = "/tools" }: { path?: string }) {
+export function App({
+  path = "/tools",
+  Page,
+}: {
+  path?: string;
+  Page: PageComponent | null;
+}) {
   const locale = useLocale();
   const normalized = parseLocalizedPath(path).path;
   const language: Language = locale === "en" ? "en" : "zh";
   const current = tools.find((tool) => normalized === `/tools/${tool.id}`);
   const isHome = normalized === "/" || normalized === "/tools";
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (root) {
+      root.inert = false;
+      root.dataset.hydrated = "true";
+    }
+  }, []);
   useEffect(() => {
     const meta = pageMetadata({ language, tool: current, isHome });
     document.title = meta.title;
@@ -24,14 +34,8 @@ export function App({ path = "/tools" }: { path?: string }) {
   }, [language, current, isHome]);
   return (
     <AppLayout current={current} isHome={isHome} language={language}>
-      {isHome ? (
-        <ToolDirectory language={language} />
-      ) : current?.id === "code-image" ? (
-        <CodeImage />
-      ) : current?.id === "diff" ? (
-        <DiffTool />
-      ) : current ? (
-        <TextToolPage current={current} language={language} />
+      {Page ? (
+        <Page current={current} language={language} />
       ) : (
         <section className="not-found">
           <span className="eyebrow">404 / NOT FOUND</span>

@@ -8,7 +8,7 @@ self.onmessage = async (event: MessageEvent<ToolRequest>) => {
   const { id, input, options } = event.data;
   try {
     await i18n.changeLanguage(resolveLanguage(event.data.language ?? null, []));
-    checkInput(input);
+    checkInput(input, id);
     let result: string;
     switch (id) {
       case "json":

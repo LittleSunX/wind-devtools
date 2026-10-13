@@ -1,6 +1,7 @@
 import { chromium, expect } from "@playwright/test";
 import assert from "node:assert/strict";
 import { checkPreviewRecovery } from "./canvas-preview-checks.mjs";
+import { checkCanvasHighlightRecovery } from "./canvas-highlight-checks.mjs";
 import { mkdir } from "node:fs/promises";
 import {
   canvasTools,
@@ -125,7 +126,7 @@ try {
   await (await field("风格")).selectOption("午夜蓝");
   await (await field("字号")).selectOption("24");
   await close();
-  await expect(page.getByLabel("风格", { exact: true })).toHaveValue("custom");
+  await expect(await field("风格")).toHaveValue("custom");
   await expect(
     page.getByLabel("风格", { exact: true }).locator('option[value="custom"]'),
   ).toHaveJSProperty("disabled", true);
@@ -413,16 +414,16 @@ try {
   await failed.route("**/fonts/*.woff2", (route) => route.abort());
   await failed.goto(base + "/tools/code-image");
   await failed.getByRole("alert").filter({ hasText: "字体加载失败" }).waitFor();
-  await failed.getByRole("button", { name: /^外观设置/ }).click();
-  await failed.getByLabel("字体", { exact: true }).selectOption("system");
+  await (await canvasTools(failed).field("字体")).selectOption("system");
   await expect(
     failed.getByRole("button", { name: "导出", exact: true }),
   ).toBeEnabled();
   await failed.close();
+  await checkCanvasHighlightRecovery(page);
   assert.deepEqual(errors, []);
   await checkPreviewRecovery(browser, base);
   console.log(
-    "Canvas checks passed: DOM/PNG parity, zoom, scale, input/undo/find, selection exclusion, clipboard, wrapping, long export, privacy and mobile.",
+    "Canvas checks passed: DOM/PNG parity, zoom, scale, input/undo/find, selection exclusion, clipboard, wrapping, long export, privacy, mobile, persistent highlights and timeout recovery.",
   );
 } catch (error) {
   await page

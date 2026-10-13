@@ -22,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm test
-      - run: npm run build
+      - run: npm run build:preview
       - run: npm run test:build
       - run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser regression
@@ -44,7 +44,9 @@ jobs:
             exit 1
           fi
           npm run test:browser
+          npm run test:diff
           npm run test:code-image
+          npm run test:canvas-workbench
           npm run test:compat
           npm run test:sidebar
           npm run test:i18n

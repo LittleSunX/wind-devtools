@@ -80,4 +80,29 @@ describe("canvas export readiness", () => {
     expect(result.canExport).toBe(false);
     expect(result.error).toContain("宽度");
   });
+  it("allows SVG and recovery when only PNG scale exceeds the pixel budget", () => {
+    const options = {
+      ...defaults,
+      widthMode: "fixed" as const,
+      width: 800,
+      scale: 3,
+    };
+    const input = {
+      ...ready,
+      options,
+      size: { ...size, width: 800, height: 2600, options },
+    };
+    const oversized = canvasReadiness(input);
+    expect(oversized.canExport).toBe(false);
+    expect(oversized.canExportSvg).toBe(true);
+    expect(oversized.pngError).toContain("倍率");
+    const reduced = { ...options, scale: 2 };
+    expect(
+      canvasReadiness({
+        ...input,
+        options: reduced,
+        size: { ...input.size, options: reduced },
+      }).canExport,
+    ).toBe(true);
+  });
 });

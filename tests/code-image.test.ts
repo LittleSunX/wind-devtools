@@ -15,12 +15,10 @@ import {
 describe("code image highlighting", () => {
   it.each(languages.map(([id]) => id))(
     "preserves source text in %s",
-    (language) => {
+    async (language) => {
       const code = '// 中文\nconst name = "<script> 😀";\n';
       expect(
-        highlightCode(code, language)
-          .map((t) => t.text)
-          .join(""),
+        (await highlightCode(code, language)).map((t) => t.text).join(""),
       ).toBe(code);
     },
   );
@@ -42,13 +40,16 @@ describe("code image highlighting", () => {
     ["kotlin", "fun main() { val n = 1 }"],
     ["swift", 'let name = "hello"'],
     ["ruby", "def hello\n  puts 'hello'\nend"],
-  ])("recognizes native syntax in %s", (language, code) => {
-    const segments = highlightCode(code, language);
+  ])("recognizes native syntax in %s", async (language, code) => {
+    const segments = await highlightCode(code, language);
     expect(segments.some((segment) => segment.type.length > 0)).toBe(true);
     expect(segments.map((segment) => segment.text).join("")).toBe(code);
   });
-  it("assigns keyword and string colors", () => {
-    const result = highlightCode('const greeting = "hello";', "javascript");
+  it("assigns keyword and string colors", async () => {
+    const result = await highlightCode(
+      'const greeting = "hello";',
+      "javascript",
+    );
     expect(result.some((s) => s.type === "keyword" && s.text === "const")).toBe(
       true,
     );

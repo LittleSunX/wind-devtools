@@ -49,20 +49,25 @@ export function canvasReadiness({
     size.overflow
   )
     validation = "代码超出指定宽度，请开启长行自动换行或增加宽度。";
-  if (
+  const pngError =
     !validation &&
     (size.width * size.height * options.scale ** 2 > 16000000 ||
       size.height * options.scale > 12000)
-  )
-    validation = "图片尺寸过大，请减少代码、字号、行高或导出倍率。";
-  const error = validation || fontError || highlightError;
-  const canExport =
-    !error &&
+      ? "图片尺寸过大，请减少代码、字号、行高或导出倍率。"
+      : "";
+  const renderError = validation || fontError || highlightError;
+  const canExportSvg =
+    !renderError &&
     highlighted &&
     fontReady === options.fontFamily &&
     size.code === code &&
     size.options === options &&
     size.width > 0 &&
     (options.widthMode === "fixed" || size.width === autoWidth);
-  return { error, canExport };
+  return {
+    error: renderError || pngError,
+    pngError,
+    canExportSvg,
+    canExport: canExportSvg && !pngError,
+  };
 }

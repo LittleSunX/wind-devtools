@@ -17,6 +17,9 @@ type Props = {
   artwork: RefObject<HTMLDivElement | null>;
   options: ImageOptions;
   canExport: boolean;
+  canExportSvg: boolean;
+  pngError: string;
+  size: { width: number; height: number };
   exporting: boolean;
   setExporting: (value: boolean) => void;
   setNotice: (value: Message) => void;
@@ -30,6 +33,9 @@ export default function CanvasActions({
   artwork,
   options,
   canExport,
+  canExportSvg,
+  pngError,
+  size,
   exporting,
   setExporting,
   setNotice,
@@ -83,7 +89,7 @@ export default function CanvasActions({
   }
 
   async function copySvgSource() {
-    if (!canExport || !artwork.current || exporting) return;
+    if (!canExportSvg || !artwork.current || exporting) return;
     setExporting(true);
     setNotice("");
     try {
@@ -256,7 +262,7 @@ export default function CanvasActions({
   }
 
   async function downloadSvg() {
-    if (!canExport || !artwork.current || exporting) return;
+    if (!canExportSvg || !artwork.current || exporting) return;
     setExporting(true);
     setNotice("");
     try {
@@ -282,16 +288,30 @@ export default function CanvasActions({
 
   return (
     <div className="canvas-export-actions">
+      {/* Firefox restores dynamic disabled state on reload unless autocomplete
+          is off. Use its button extension without augmenting React's types. */}
+      <button
+        {...{ autoComplete: "off" }}
+        type="button"
+        className="canvas-quick-copy"
+        aria-label={tr("快速复制图片")}
+        disabled={!canExport || exporting}
+        onClick={() => void copyImage()}
+      >
+        {tr("复制图片")}
+      </button>
       <CanvasPopover
         alignEnd
         label="复制"
         title="复制"
-        disabled={!canExport || exporting}
+        disabled={!canExportSvg || exporting}
       >
         <div className="canvas-action-menu">
           <button
+            {...{ autoComplete: "off" }}
             type="button"
             aria-label={tr("复制图片")}
+            disabled={!canExport || exporting}
             onClick={(event) => {
               hideActionMenu(event.currentTarget);
               void copyImage();
@@ -301,8 +321,10 @@ export default function CanvasActions({
             <small>PNG</small>
           </button>
           <button
+            {...{ autoComplete: "off" }}
             type="button"
             aria-label={tr("在新标签页打开")}
+            disabled={!canExport || exporting}
             onClick={(event) => {
               hideActionMenu(event.currentTarget);
               void openPngPreview();
@@ -314,8 +336,10 @@ export default function CanvasActions({
           <details className="canvas-advanced-copy">
             <summary>{tr("高级复制")}</summary>
             <button
+              {...{ autoComplete: "off" }}
               type="button"
               aria-label={tr("复制 SVG 源码")}
+              disabled={!canExportSvg || exporting}
               onClick={(event) => {
                 hideActionMenu(event.currentTarget);
                 void copySvgSource();
@@ -325,8 +349,10 @@ export default function CanvasActions({
               <small>SVG</small>
             </button>
             <button
+              {...{ autoComplete: "off" }}
               type="button"
               aria-label={tr("复制 PNG Data URL")}
+              disabled={!canExport || exporting}
               onClick={(event) => {
                 hideActionMenu(event.currentTarget);
                 void copyPngText("data-url");
@@ -336,8 +362,10 @@ export default function CanvasActions({
               <small>data:image/png</small>
             </button>
             <button
+              {...{ autoComplete: "off" }}
               type="button"
               aria-label={tr("复制 PNG Base64")}
+              disabled={!canExport || exporting}
               onClick={(event) => {
                 hideActionMenu(event.currentTarget);
                 void copyPngText("base64");
@@ -350,13 +378,30 @@ export default function CanvasActions({
         </div>
       </CanvasPopover>
 
+      <button
+        {...{ autoComplete: "off" }}
+        type="button"
+        className="primary canvas-quick-export"
+        aria-label={tr("快速下载 PNG")}
+        disabled={!canExport || exporting}
+        onClick={() => void downloadPng()}
+      >
+        {tr(exporting ? "正在导出…" : "下载 PNG")}
+        <span aria-hidden="true">↓</span>
+      </button>
       <CanvasPopover
         alignEnd
         label={exporting ? "正在导出…" : "导出"}
         title="导出"
-        disabled={!canExport || exporting}
+        disabled={!canExportSvg || exporting}
       >
         <div className="canvas-export-menu">
+          <div className="canvas-export-dimensions">
+            <strong>{tr("导出尺寸")}</strong>
+            <span>
+              {size.width * options.scale} × {size.height * options.scale} px
+            </span>
+          </div>
           <div
             className="canvas-export-scale"
             role="group"
@@ -366,9 +411,11 @@ export default function CanvasActions({
             <div>
               {[1, 2, 3].map((scale) => (
                 <button
+                  {...{ autoComplete: "off" }}
                   type="button"
                   key={scale}
                   aria-pressed={options.scale === scale}
+                  disabled={exporting}
                   onClick={() => update("scale", scale)}
                 >
                   {scale}×
@@ -376,10 +423,17 @@ export default function CanvasActions({
               ))}
             </div>
           </div>
+          {pngError && (
+            <p className="canvas-export-warning" role="status">
+              {tr(pngError)}
+            </p>
+          )}
           <div className="canvas-action-menu">
             <button
+              {...{ autoComplete: "off" }}
               type="button"
               aria-label={tr("下载 PNG")}
+              disabled={!canExport || exporting}
               onClick={(event) => {
                 hideActionMenu(event.currentTarget);
                 void downloadPng();
@@ -389,8 +443,10 @@ export default function CanvasActions({
               <small>{options.scale}×</small>
             </button>
             <button
+              {...{ autoComplete: "off" }}
               type="button"
               aria-label={tr("下载 SVG")}
+              disabled={!canExportSvg || exporting}
               onClick={(event) => {
                 hideActionMenu(event.currentTarget);
                 void downloadSvg();

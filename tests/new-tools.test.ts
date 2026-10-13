@@ -26,6 +26,15 @@ describe("codec tool", () => {
     );
   });
 
+  it("preserves unescaped whitespace when decoding URL components", () => {
+    expect(
+      codecTool(" \tWind%20DevTools\n ", {
+        codec: "url",
+        codecDirection: "decode",
+      }),
+    ).toBe(" \tWind DevTools\n ");
+  });
+
   it("rejects malformed encoded input", () => {
     expect(() =>
       codecTool("%%%", { codec: "url", codecDirection: "decode" }),
@@ -104,8 +113,8 @@ describe("text diff", () => {
       ["add", "x"],
       ["same", "c"],
     ]);
-    expect(formatUnifiedDiff(result)).toContain("- b");
-    expect(formatUnifiedDiff(result)).toContain("+ x");
+    expect(formatUnifiedDiff(result)).toContain("-b");
+    expect(formatUnifiedDiff(result)).toContain("+x");
   });
 
   it("protects the browser from very large line matrices", () => {
